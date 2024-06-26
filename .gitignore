@@ -1,2 +1,9 @@
+# Ignore virtual environment
 venv/
 
+# Ignore build artifacts
+build/
+
+# Ignore egg files
+.eggs/
+DeepLoc2.egg-info/
