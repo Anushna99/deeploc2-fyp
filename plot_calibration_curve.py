@@ -7,10 +7,8 @@ import matplotlib.pyplot as plt
 true_data = pd.read_csv('hpa_testset.csv')
 predicted_data = pd.read_csv('./outputs/results_hpa_testset_20240620_013643.csv/results_20240619-204146.csv')
 
-# Define the class names
-class_names = ['Cytoplasm', 'Nucleus', 'Extracellular', 'Cell membrane',
-               'Mitochondrion', 'Plastid', 'Endoplasmic reticulum',
-               'Lysosome/Vacuole', 'Golgi apparatus', 'Peroxisome']
+# Extract common class names from both datasets
+class_names = [col for col in true_data.columns if col in predicted_data.columns]
 
 # Initialize a figure for plotting
 plt.figure(figsize=(10, 8))
