@@ -7,3 +7,7 @@ build/
 # Ignore egg files
 .eggs/
 DeepLoc2.egg-info/
+venv/
+build/
+.eggs/
+DeepLoc2.egg-info/
