@@ -72,6 +72,3 @@ In case of technical problems (bugs etc.) please contact packages@cbs.dtu.dk.
 
 Questions on the scientific aspects of the DeepLoc 2.0 method should go to Henrik
 Nielsen, hennin@dtu.dk.
-
-/home/pasindumadusha_20/deeploc2-fyp/venv/lib/python3.8/site-packages/pytorch_lightning/trainer/connectors/data_connector.py:424: The 'val_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=7` in the `DataLoader` to improve performance.
-/home/pasindumadusha_20/deeploc2-fyp/venv/lib/python3.8/site-packages/pytorch_lightning/trainer/connectors/data_connector.py:424: The 'train_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=7` in the `DataLoader` to improve performance.
