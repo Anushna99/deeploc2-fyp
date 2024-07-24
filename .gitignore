@@ -11,3 +11,6 @@ venv/
 build/
 .eggs/
 DeepLoc2.egg-info/
+
+# Ignore embeddings
+data_files/embeddings/esm1b_swissprot.h5
