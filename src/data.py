@@ -175,7 +175,7 @@ def convert_to_binary(x):
 
 def get_swissprot_ss_Xy(save_path, fold, clip_len):
     with open(SIGNAL_DATA, "rb") as f:
-        annot_df = pickle5.load(f)
+        annot_df = pd.compat.pickle_compat.load(f) # changed from pickle5
     nes_exclude_list = ['Q7TPV4','P47973','P38398','P38861','Q16665','O15392','Q9Y8G3','O14746','P13350','Q06142']
     swissprot_exclusion_list = ['Q04656-5','O43157','Q9UPN3-2']
     def clip_middle_np(x):
