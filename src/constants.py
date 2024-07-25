@@ -18,6 +18,14 @@ EMBEDDINGS = {
     }
 }
 
+# EMBEDDINGS = {
+#     FAST: {
+#         "embeds": "data_files/embeddings/esm1b_hpa.h5",
+#         "config": "hpa_t5.yaml",
+#         "source_fasta": "data_files/deeploc_hpa_clipped1k.fasta"
+#     },
+# }
+
 SIGNAL_DATA = "data_files/multisub_ninesignals.pkl"
 LOCALIZATION_DATA = "./data_files/multisub_5_partitions_unique.csv"
 
