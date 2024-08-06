@@ -54,12 +54,17 @@ def embed_prott5(embed_dataloader, out_file):
         raise Exception("Failed to create embeddings")
 
 def generate_embeddings(model_attrs: ModelAttributes):
+    '''
+    This function generates embeddings based on the model type (either FAST or ACCURATE).
+    '''
     fasta_dict = read_fasta(EMBEDDINGS[model_attrs.model_type]["source_fasta"])
+    # Converts the dictionary into a DataFrame with columns ACC and Sequence
     test_df = pd.DataFrame(fasta_dict.items(), columns=['ACC', 'Sequence'])
     embed_dataset = FastaBatchedDatasetTorch(test_df)
     embed_batches = embed_dataset.get_batch_indices(8196, extra_toks_per_seq=1)
     if model_attrs.model_type == FAST:
         embed_dataloader = torch.utils.data.DataLoader(embed_dataset, collate_fn=BatchConverter(model_attrs.alphabet), batch_sampler=embed_batches)
+        #For each batch, runs the model to get representations and stores them in the HDF5 file.
         embed_esm1b(embed_dataloader, EMBEDDINGS[model_attrs.model_type]["embeds"])
     elif model_attrs.model_type == ACCURATE:
         embed_dataloader = torch.utils.data.DataLoader(embed_dataset, collate_fn=BatchConverterProtT5(model_attrs.alphabet), batch_sampler=embed_batches)

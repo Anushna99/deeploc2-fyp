@@ -7,18 +7,32 @@ import time
 import os
 class FastaBatchedDatasetTorch(torch.utils.data.Dataset):
     def __init__(self, data_df):
+        '''Initializes the dataset with a DataFrame data_df containing the sequences and their corresponding identifiers (ACC).
+        '''
         self.data_df = data_df
 
     def __len__(self):
+        '''
+        Returns the number of sequences in the dataset.
+        '''
         return len(self.data_df)
     
     def shuffle(self):
+        '''
+        Shuffles the DataFrame to randomize the order of sequences.
+        '''
         self.data_df = self.data_df.sample(frac=1).reset_index(drop=True)
 
     def __getitem__(self, idx):
+        '''
+        Returns the sequence and its corresponding identifier for a given index idx.
+        '''
         return self.data_df["Sequence"][idx], self.data_df["ACC"][idx]
 
     def get_batch_indices(self, toks_per_batch, extra_toks_per_seq=0):
+        '''
+        generate batches of indices that can be used to load data efficiently.
+        '''
         sizes = [(len(s), i) for i, s in enumerate(self.data_df["Sequence"])]
         sizes.sort(reverse=True)
         batches = []
@@ -140,6 +154,8 @@ def get_swissprot_df(clip_len):
         annot_df = pd.compat.pickle_compat.load(f)
     nes_exclude_list = ['Q7TPV4','P47973','P38398','P38861','Q16665','O15392','Q9Y8G3','O14746','P13350','Q06142']
     swissprot_exclusion_list = ['Q04656-5','O43157','Q9UPN3-2']
+
+    #These functions ensure that sequences longer than clip_len are trimmed to include only the middle portion.
     def clip_middle_np(x):
         if len(x)>clip_len:
             x = np.concatenate((x[:clip_len//2],x[-clip_len//2:]), axis=0)
@@ -312,16 +328,26 @@ class SignalTypeDataset(torch.utils.data.Dataset):
 
 
 class DataloaderHandler:
-    def __init__(self, clip_len, alphabet, embedding_file, embed_len) -> None:
+    '''
+    The DataloaderHandler class is designed to handle the data loading and processing necessary for training and validation of a model.
+    Parameters:
+        clip_len: Maximum length of sequences to be processed.
+        alphabet: Object containing information about token indices (e.g., padding, start, end tokens).
+        embedding_file: Path to the file where embeddings are stored.
+        embed_len: Length of the embeddings.
+    '''
+    def __init__(self, clip_len, alphabet, embedding_file, embed_len, num_workers=7) -> None:
         self.clip_len = clip_len
         self.alphabet = alphabet
         self.embedding_file = embedding_file
         self.embed_len = embed_len
+        self.num_workers = num_workers  # Add num_workers parameter
 
     def get_train_val_dataloaders(self, outer_i):
-        data_df = get_swissprot_df(self.clip_len)
+        data_df = get_swissprot_df(self.clip_len) #Calls get_swissprot_df function to obtain a DataFrame containing SwissProt data with sequences clipped to clip_len.
         
-        train_df = data_df[data_df.Partition != outer_i].reset_index(drop=True)
+        train_df = data_df[data_df.Partition != outer_i].reset_index(drop=True) # Splits the data into training and validation sets based on outer_i.
+        #ShuffleSplit is used to create a validation set of size 2048.
 
         X = np.stack(train_df["ACC"].to_numpy())
         sss_tt = ShuffleSplit(n_splits=1, test_size=2048, random_state=0)
@@ -330,16 +356,23 @@ class DataloaderHandler:
         split_train_df =  train_df.iloc[split_train_idx].reset_index(drop=True)
         split_val_df = train_df.iloc[split_val_idx].reset_index(drop=True)
 
-        # print(split_train_df[CATEGORIES].mean())
-        # print(split_val_df[CATEGORIES].mean())
+        # can help you understand how the data is distributed and whether there are any imbalances.
+        print(split_train_df[CATEGORIES].mean())
+        print(split_val_df[CATEGORIES].mean())
+
         embedding_file = h5py.File(self.embedding_file, "r")
         train_dataset = EmbeddingsLocalizationDataset(embedding_file, split_train_df)
         train_batches = train_dataset.get_batch_indices(4096*4, BATCH_SIZE, extra_toks_per_seq=0)
-        train_dataloader = torch.utils.data.DataLoader(train_dataset, collate_fn=TrainBatchConverter(self.alphabet, self.embed_len), batch_sampler=train_batches)
+        train_dataloader = torch.utils.data.DataLoader(train_dataset, collate_fn=TrainBatchConverter(self.alphabet, self.embed_len), batch_sampler=train_batches, num_workers=self.num_workers,
+            pin_memory=True) # use pin_memory to utilize more gpu
 
         val_dataset = EmbeddingsLocalizationDataset(embedding_file, split_val_df)
         val_batches = val_dataset.get_batch_indices(4096*4, BATCH_SIZE, extra_toks_per_seq=0)
-        val_dataloader = torch.utils.data.DataLoader(val_dataset, collate_fn=TrainBatchConverter(self.alphabet, self.embed_len), batch_sampler=val_batches)
+        val_dataloader = torch.utils.data.DataLoader(val_dataset, 
+                                                     collate_fn=TrainBatchConverter(self.alphabet, self.embed_len), 
+                                                     batch_sampler=val_batches,
+                                                    num_workers=self.num_workers,
+                                                    pin_memory=True) # use pin_memory to utilize more gpu
         return train_dataloader, val_dataloader
 
     def get_partition(self, outer_i):
@@ -354,7 +387,8 @@ class DataloaderHandler:
         embedding_file = h5py.File(self.embedding_file, "r")
         test_dataset = EmbeddingsLocalizationDataset(embedding_file, test_df)
         test_batches = test_dataset.get_batch_indices(4096*4, BATCH_SIZE, extra_toks_per_seq=0)
-        test_dataloader = torch.utils.data.DataLoader(test_dataset, collate_fn=TrainBatchConverter(self.alphabet, self.embed_len), batch_sampler=test_batches)
+        test_dataloader = torch.utils.data.DataLoader(test_dataset, collate_fn=TrainBatchConverter(self.alphabet, self.embed_len), batch_sampler=test_batches, num_workers=self.num_workers,
+            pin_memory=True)
         return test_dataloader, test_df
 
     def get_partition_dataloader_inner(self, partition_i):
@@ -363,7 +397,8 @@ class DataloaderHandler:
         embedding_file = h5py.File(self.embedding_file, "r")
         test_dataset = EmbeddingsLocalizationDataset(embedding_file, test_df)
         test_batches = test_dataset.get_batch_indices(4096*4, BATCH_SIZE, extra_toks_per_seq=0)
-        test_dataloader = torch.utils.data.DataLoader(test_dataset, collate_fn=TrainBatchConverter(self.alphabet, self.embed_len), batch_sampler=test_batches)
+        test_dataloader = torch.utils.data.DataLoader(test_dataset, collate_fn=TrainBatchConverter(self.alphabet, self.embed_len), batch_sampler=test_batches, num_workers=self.num_workers,
+            pin_memory=True)
 
         return test_dataloader, test_df
     
@@ -382,13 +417,17 @@ class DataloaderHandler:
             train_dataset,
             shuffle=True,
             batch_size=BATCH_SIZE,
-            drop_last=True)
+            drop_last=True,
+            num_workers=self.num_workers,
+            pin_memory=True)
 
         val_dataset = SignalTypeDataset(split_val_X, split_val_y)
         val_dataloader = torch.utils.data.DataLoader(
             val_dataset,
             shuffle=False,
-            batch_size=BATCH_SIZE)
+            batch_size=BATCH_SIZE,
+            num_workers=self.num_workers,
+            pin_memory=True)
         
         return train_dataloader, val_dataloader
 
@@ -400,7 +439,9 @@ class DataloaderHandler:
         val_dataloader = torch.utils.data.DataLoader(
             val_dataset,
             shuffle=False,
-            batch_size=X.shape[0])
+            batch_size=X.shape[0],
+            num_workers=self.num_workers,
+            pin_memory=True)
 
         return val_dataloader
     

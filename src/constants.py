@@ -5,6 +5,8 @@ SS_CATEGORIES = ["NULL", "SP", "TM", "MT", "CH", "TH", "NLS", "NES", "PTS", "GPI
 FAST = "Fast"
 ACCURATE = "Accurate"
 
+# An HDF5 (Hierarchical Data Format version 5) file, denoted with the .h5 extension, is a binary data format used for storing 
+# large amounts of numerical data.
 EMBEDDINGS = {
     FAST: {
         "embeds": "data_files/embeddings/esm1b_swissprot.h5",

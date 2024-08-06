@@ -48,6 +48,9 @@ def generate_sl_outputs(
         thresh_type="mcc", 
         inner_i="1Layer", 
         reuse=False):
+    '''
+    This function generates predictions and optimal thresholds for different models and saves the results.
+    '''
     
     threshold_dict = {}
         

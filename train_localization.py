@@ -15,8 +15,11 @@ warnings.filterwarnings(
 )
 
 def train_model(model_attrs: ModelAttributes, datahandler:DataloaderHandler, outer_i: int):
-    train_dataloader, val_dataloader = datahandler.get_train_val_dataloaders(outer_i)
+    train_dataloader, val_dataloader = datahandler.get_train_val_dataloaders(outer_i) # Gets training and validation data loaders for the current model iteration.
 
+    # Saves the model’s weights whenever the bce_loss (binary cross-entropy loss) improves.
+    # Saves the best model weights based on validation performance.
+    # Saves every epoch to keep track of progress.
     checkpoint_callback = ModelCheckpoint(
         monitor='bce_loss',
         dirpath=model_attrs.save_path,
@@ -27,6 +30,7 @@ def train_model(model_attrs: ModelAttributes, datahandler:DataloaderHandler, out
         save_weights_only=True
     )
 
+    # Stops training early if there’s no improvement in bce_loss for 5 consecutive epochs to avoid overfitting.
     early_stopping_callback = EarlyStopping(
          monitor='bce_loss',
          patience=5, 
@@ -41,7 +45,8 @@ def train_model(model_attrs: ModelAttributes, datahandler:DataloaderHandler, out
                             checkpoint_callback, 
                             early_stopping_callback
                         ],
-                        precision=16,
+                        #precision=16,
+                        precision="16-mixed",
                         accelerator="auto")
     clf = model_attrs.class_type()
     trainer.fit(clf, train_dataloader, val_dataloader)
@@ -59,7 +64,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    model_attrs = get_train_model_attributes(model_type=args.model)
+    model_attrs = get_train_model_attributes(model_type=args.model) # fetching model attributes according to the user iinput
     if not os.path.exists(model_attrs.embedding_file):
         print("Embeddings not found, generating......")
         generate_embeddings(model_attrs)
@@ -77,8 +82,10 @@ if __name__ == "__main__":
         embed_len=model_attrs.embed_len
     )
     print("Training subcellular localization models")
+    # train the same thing with different initial values or using different subsets
     for i in range(0, 5):
         print(f"Training model {i+1} / 5")
+        #  Verifies if a checkpoint file already exists in the save path.
         if not os.path.exists(os.path.join(model_attrs.save_path, f"{i}_1Layer.ckpt")):
             train_model(model_attrs, datahandler, i)
     print("Finished training subcellular localization models")

@@ -12,3 +12,6 @@ venv/
 build/
 .eggs/
 DeepLoc2.egg-info/
+
+# Ignore data_files
+data_files/embeddings
