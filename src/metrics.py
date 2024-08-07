@@ -62,6 +62,12 @@ def get_best_threshold_mcc(y_true, y_prob):
     return best_proba
 
 def get_optimal_threshold(output_df, data_df):
+    '''
+    To find the threshold that maximizes the difference between the 
+    True Positive Rate (TPR) and False Positive Rate (FPR) on the Receiver Operating Characteristic (ROC) curve.
+    The optimal threshold is chosen where the difference between TPR and FPR is maximized, balancing sensitivity and specificity
+    Finds the optimal threshold for each category based on the difference between TPR and FPR.
+    '''
     test_df = data_df.merge(output_df)
     
     predictions = np.stack(test_df["preds"].to_numpy())
@@ -76,6 +82,10 @@ def get_optimal_threshold(output_df, data_df):
     return optimal_thresholds
 
 def get_optimal_threshold_pr(output_df, data_df):
+    '''
+    To find the threshold that maximizes the F1 score (a balance between precision and recall) on the Precision-Recall (PR) curve.
+    The optimal threshold is chosen where the F1 score, which is the harmonic mean of precision and recall, is maximized.
+    '''
     test_df = data_df.merge(output_df)
     
     predictions = np.stack(test_df["preds"].to_numpy())
@@ -91,6 +101,9 @@ def get_optimal_threshold_pr(output_df, data_df):
     return optimal_thresholds
 
 def get_optimal_threshold_mcc(output_df, data_df):
+    '''
+    To find the threshold that maximizes the Matthews Correlation Coefficient (MCC), which measures the quality of binary classifications.
+    '''
     test_df = data_df.merge(output_df)
     
     predictions = np.stack(test_df["preds"].to_numpy())
@@ -134,18 +147,51 @@ def calculate_sl_metrics_fold(test_df, thresholds):
 def calculate_sl_metrics(model_attrs: ModelAttributes, datahandler: DataloaderHandler, thresh_type="mcc", inner_i="1Layer"):
     with open(os.path.join(model_attrs.outputs_save_path, f"thresholds_sl_{thresh_type}.pkl"), "rb") as f:
         threshold_dict = pickle.load(f)
-    print(np.array(list(threshold_dict.values())).mean(0))
+    
+    # Calculate mean thresholds
+    threshold_values = np.array(list(threshold_dict.values()))
+    print("Mean of the threshold values per dimension:")
+    for i, threshold_mean in enumerate(threshold_values.mean(axis=0)):
+        print(f"Dimension {i}: {threshold_mean}")
+    print("Overall mean of threshold values:", threshold_values.mean())
+    
+    # Initialize an empty dictionary to store metrics for each fold
     metrics_dict_list = {}
+    
+    # Initialize an empty list to collect all data frames for each partition
     full_data_df = []
+    
+    # Iterate over the outer cross-validation folds (assuming 5-fold CV)
     for outer_i in range(5):
+        # Get the data partition for the current fold
         data_df = datahandler.get_partition(outer_i)
+        
+        # Load the corresponding SL output predictions
         output_df = pd.read_pickle(os.path.join(model_attrs.outputs_save_path, f"{outer_i}_{inner_i}.pkl"))
+        
+        # Merge the data partition with the SL predictions
         data_df = data_df.merge(output_df)
+        
+        # Append the merged data frame to the list of full data
         full_data_df.append(data_df)
+        
+        # Get the threshold for the current fold from the threshold dictionary
         threshold = threshold_dict[f"{outer_i}_{inner_i}"]
+        
+        # Calculate SL metrics for the current fold using the merged data and threshold
         metrics_dict = calculate_sl_metrics_fold(data_df, threshold)
+        
+        # Accumulate the metrics for each fold in a dictionary
         for k in metrics_dict:
             metrics_dict_list.setdefault(k, []).append(metrics_dict[k])
+
+    # Combine all data frames from each fold into a single data frame
+    combined_df = pd.concat(full_data_df, ignore_index=True)
+    
+    # Save the combined data frame with specific columns to a CSV file
+    output_csv_path = os.path.join(model_attrs.outputs_save_path, "combined_true_and_predictions.csv")
+    combined_df[['ACC', 'True_Label', 'preds']].to_csv(output_csv_path, index=False)
+    print(f"Saved full data to {output_csv_path}")
 
     output_dict = {}
     for k in metrics_dict_list:
@@ -190,3 +236,33 @@ def calculate_ss_metrics(model_attrs: ModelAttributes, datahandler: DataloaderHa
     for k in metrics_dict_list:
         output_dict[k] = [f"{round(np.array(metrics_dict_list[k]).mean(), 2):.2f} pm {round(np.array(metrics_dict_list[k]).std(), 2):.2f}"]
     print(pd.DataFrame(output_dict).to_latex())
+
+def save_protein_predictions_to_csv(model_attrs, datahandler, inner_i="1Layer"):
+    full_data_df = []
+    for outer_i in range(5):
+        # Get the data partition for the current fold
+        data_df = datahandler.get_partition(outer_i)
+        
+        # Load the corresponding SL output predictions
+        output_df = pd.read_pickle(os.path.join(model_attrs.outputs_save_path, f"{outer_i}_{inner_i}.pkl"))
+        
+        # Merge the data partition with the SL predictions
+        data_df = data_df.merge(output_df)
+        
+        # Append the merged data frame to the list of full data
+        full_data_df.append(data_df)
+    
+    # Concatenate all data partitions into a single DataFrame
+    full_data_df = pd.concat(full_data_df, axis=0)
+    
+    # Assume that the predicted probabilities for each category are in the correct order in the DataFrame
+    predictions_df = full_data_df[['Protein_ID', 'Localizations'] + [f'pred_{cat}' for cat in CATEGORIES]]
+    
+    # Rename columns to match the desired format
+    predictions_df.columns = ['Protein_ID', 'Localizations'] + CATEGORIES
+    
+    # Save to CSV
+    csv_file_path = "protein_predictions.csv"  # Specify the desired path and filename
+    predictions_df.to_csv(csv_file_path, index=False)
+
+    print(f"Protein predictions saved to {csv_file_path}")

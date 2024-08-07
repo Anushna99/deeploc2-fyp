@@ -33,7 +33,10 @@ class FastaBatchedDatasetTorch(torch.utils.data.Dataset):
         '''
         generate batches of indices that can be used to load data efficiently.
         '''
+
+        # calculate each sequence's length and pair it with sequence index
         sizes = [(len(s), i) for i, s in enumerate(self.data_df["Sequence"])]
+        # order it from most to least
         sizes.sort(reverse=True)
         batches = []
         buf = []
@@ -100,6 +103,7 @@ class BatchConverter(object):
         self.alphabet = alphabet
 
     def __call__(self, raw_batch):
+        # raw_batch is a list of tuples (sequence_string, label)
         # RoBERTa uses an eos token, while ESM-1 does not.
         batch_size = len(raw_batch)
         #print(len(raw_batch[0]), raw_batch[1], raw_batch[2])
@@ -125,7 +129,9 @@ class BatchConverter(object):
         non_pad_mask = ~tokens.eq(self.alphabet.padding_idx) &\
          ~tokens.eq(self.alphabet.cls_idx) &\
          ~tokens.eq(self.alphabet.eos_idx)# B, T
-
+        
+        # Return the processed tensors: tokens (tokenized sequences), lengths (lengths of the sequences), 
+        # non_pad_mask (mask for non-padding tokens), and labels (which contain the ACC values).
         return tokens, torch.tensor(lengths), non_pad_mask, labels
 
 def read_fasta(fastafile):
@@ -151,6 +157,7 @@ from src.constants import *
 
 def get_swissprot_df(clip_len):  
     with open(SIGNAL_DATA, "rb") as f:
+        # This DataFrame contains annotations related to the proteins.
         annot_df = pd.compat.pickle_compat.load(f)
     nes_exclude_list = ['Q7TPV4','P47973','P38398','P38861','Q16665','O15392','Q9Y8G3','O14746','P13350','Q06142']
     swissprot_exclusion_list = ['Q04656-5','O43157','Q9UPN3-2']
@@ -247,10 +254,18 @@ class EmbeddingsLocalizationDataset(torch.utils.data.Dataset):
         self.embeddings_file = embedding_file
     
     def __getitem__(self, index: int):
+        '''
+        For a given index, it retrieves the corresponding sequence, embedding, target, target annotation, 
+        and protein ID (ACC) from the DataFrame and the embeddings file.
+        '''
         embedding = np.array(self.embeddings_file[self.data_df["ACC"][index]]).copy()
         return self.data_df["Sequence"][index], embedding, self.data_df["Target"][index], self.data_df["TargetAnnot"][index], self.data_df["ACC"][index]
     
     def get_batch_indices(self, toks_per_batch, max_batch_size, extra_toks_per_seq=0):
+        '''
+        This method generates indices for batching the data. It sorts sequences by length and groups them 
+        into batches that fit within a specified number of tokens per batch (toks_per_batch) and a maximum batch size (max_batch_size).
+        '''
         sizes = [(len(s), i) for i, s in enumerate(self.data_df["Sequence"])]
         sizes.sort(reverse=True)
         batches = []
@@ -361,8 +376,12 @@ class DataloaderHandler:
         print(split_val_df[CATEGORIES].mean())
 
         embedding_file = h5py.File(self.embedding_file, "r")
+        # create dataset objects for training and validation.
         train_dataset = EmbeddingsLocalizationDataset(embedding_file, split_train_df)
         train_batches = train_dataset.get_batch_indices(4096*4, BATCH_SIZE, extra_toks_per_seq=0)
+        # The DataLoader class is used to create iterable data loaders for both training and validation datasets. 
+        # The collate_fn parameter specifies how to combine multiple data samples into a single batch, and batch_sampler 
+        # is used to control the batching process.
         train_dataloader = torch.utils.data.DataLoader(train_dataset, collate_fn=TrainBatchConverter(self.alphabet, self.embed_len), batch_sampler=train_batches, num_workers=self.num_workers,
             pin_memory=True) # use pin_memory to utilize more gpu
 

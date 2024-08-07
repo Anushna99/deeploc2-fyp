@@ -21,12 +21,19 @@ def embed_esm1b(embed_dataloader, out_file):
     model.eval().to(device)
     embed_h5 = h5py.File(out_file, "w")
     try:
+        # Uses torch.autocast to enable mixed-precision training (if applicable) for more efficient computation.
         with torch.autocast(device_type=device,dtype=dtype):
             with torch.no_grad():
                 for i, (toks, lengths, np_mask, labels) in tqdm.tqdm(enumerate(embed_dataloader)):
+                    # Passes the tokenized sequences through the model to obtain embeddings.
+                    # repr_layers=[33] specifies that embeddings from layer 33 should be extracted.
+                    # Converts the embeddings to NumPy arrays.
                     embed = model(toks.to(device), repr_layers=[33])["representations"][33].float().cpu().numpy()
                     for j in range(len(labels)):
-                        # removing start and end tokens
+                        # removing start and end tokens and
+                        # For each sequence in the batch, stores the embeddings in the HDF5 file.
+                        # Removes start and end tokens from the embeddings (embed[j, 1:1+lengths[j]]).
+                        # Converts embeddings to np.float16 for storage efficiency.
                         embed_h5[labels[j]] = embed[j, 1:1+lengths[j]].astype(np.float16)
         embed_h5.close()
     except:
@@ -58,9 +65,14 @@ def generate_embeddings(model_attrs: ModelAttributes):
     This function generates embeddings based on the model type (either FAST or ACCURATE).
     '''
     fasta_dict = read_fasta(EMBEDDINGS[model_attrs.model_type]["source_fasta"])
+    # store the fasta readings to a csv file
+    save_fasta_to_csv(fasta_dict=fasta_dict, outputs_save_path=model_attrs.outputs_save_path)
     # Converts the dictionary into a DataFrame with columns ACC and Sequence
     test_df = pd.DataFrame(fasta_dict.items(), columns=['ACC', 'Sequence'])
+
+    # create a embedded batches
     embed_dataset = FastaBatchedDatasetTorch(test_df)
+    # create sequence batches with token size of 8196
     embed_batches = embed_dataset.get_batch_indices(8196, extra_toks_per_seq=1)
     if model_attrs.model_type == FAST:
         embed_dataloader = torch.utils.data.DataLoader(embed_dataset, collate_fn=BatchConverter(model_attrs.alphabet), batch_sampler=embed_batches)

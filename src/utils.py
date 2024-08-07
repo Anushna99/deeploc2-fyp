@@ -2,6 +2,8 @@ from src.model import *
 from src.data import DataloaderHandler
 import pickle
 from transformers import T5EncoderModel, T5Tokenizer, logging
+import pandas as pd
+from datetime import datetime
 import os
 class ModelAttributes:
     '''
@@ -89,4 +91,26 @@ def get_train_model_attributes(model_type):
     else:
         raise Exception("wrong model type provided expected Fast,Accurate got", model_type)
     
+
+def save_fasta_to_csv(fasta_dict, outputs_save_path):
+    data = []
+    for protein_id, sequence in fasta_dict.items():
+        data.append([protein_id, sequence])
+    
+    # Define column names
+    column_names = ['Protein_ID', 'Sequence']
+    
+    # Create DataFrame
+    df = pd.DataFrame(data, columns=column_names)
+    
+    # Generate timestamp for the filename
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    output_file = os.path.join(outputs_save_path, f'{timestamp}.csv')
+    
+    # Ensure the output directory exists
+    os.makedirs(outputs_save_path, exist_ok=True)
+    
+    # Save to CSV
+    df.to_csv(output_file, index=False)
+    print(f"FASTA sequences saved to {output_file}")
 

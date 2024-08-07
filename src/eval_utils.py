@@ -18,15 +18,19 @@ else:
     device = "cpu"
     dtype=torch.bfloat16
 
-def predict_sl_values(dataloader, model):
+def predict_sl_values(dataloader, model, outputs_save_path, outer_i, inner_i):
     output_dict = {}
     annot_dict = {}
     pool_dict = {}
     with torch.no_grad():
       for i, (toks, lengths, np_mask, targets, targets_seq, labels) in tqdm.tqdm(enumerate(dataloader)):
+        # Enables automatic mixed precision, which improves performance and reduces memory usage by using both 16-bit and 32-bit floating-point operations.
         with torch.autocast(device_type=device,dtype=dtype):
+            # y_pred: The raw prediction scores or logits from the model.
+            # y_pool: The pooled outputs from the model, which could represent aggregated information from different parts of the input.
+            # y_attn: Attention weights or scores, though not used further in this function.
             y_pred, y_pool, y_attn = model.predict(toks.to(device), lengths.to(device), np_mask.to(device))
-        x = torch.sigmoid(y_pred).float().cpu().numpy()
+        x = torch.sigmoid(y_pred).float().cpu().numpy() # Applies the sigmoid function to y_pred, converting raw logits to probabilities between 0 and 1.
         for j in range(len(labels)):
             if len(labels) == 1:
                 output_dict[labels[j]] = x
@@ -40,6 +44,15 @@ def predict_sl_values(dataloader, model):
     output_df = pd.DataFrame(output_dict.items(), columns=['ACC', 'preds'])
     annot_df = pd.DataFrame(annot_dict.items(), columns=['ACC', 'pred_annot'])
     pool_df = pd.DataFrame(pool_dict.items(), columns=['ACC', 'embeds'])
+
+    output_csv_path = os.path.join(outputs_save_path, f"{outer_i}_{inner_i}_output_predictions.csv")
+    if not os.path.exists(os.path.dirname(output_csv_path)):
+            os.makedirs(os.path.dirname(output_csv_path))
+        
+    # Save the DataFrame
+    output_df.to_csv(output_csv_path, index=False)
+    print(f"Saved predictions to {output_csv_path}")
+
     return output_df.merge(annot_df).merge(pool_df)
     
 def generate_sl_outputs(
@@ -55,16 +68,23 @@ def generate_sl_outputs(
     threshold_dict = {}
         
     for outer_i in range(5):
+        # use 5 trained models to generate predictions
         print("Generating output for ensemble model", outer_i)
+        # this load the same test sets each time that used for trainnng the model
         dataloader, data_df = datahandler.get_partition_dataloader_inner(outer_i)
         if not os.path.exists(os.path.join(model_attrs.outputs_save_path, f"inner_{outer_i}_{inner_i}.pkl")):
+            # path to the model i trained checkpoint
             path = f"{model_attrs.save_path}/{outer_i}_{inner_i}.ckpt"
+            # evaluate from that checkpoint
             model = model_attrs.class_type.load_from_checkpoint(path).to(device).eval()
-            pred_df = predict_sl_values(dataloader, model)
+            # predict the location values
+            pred_df = predict_sl_values(dataloader, model, model_attrs.outputs_save_path, outer_i, inner_i)
+            # save the file for laterr
             pred_df.to_pickle(os.path.join(model_attrs.outputs_save_path, f"inner_{outer_i}_{inner_i}.pkl"))
         else:
             pred_df = pd.read_pickle(os.path.join(model_attrs.outputs_save_path, f"inner_{outer_i}_{inner_i}.pkl"))
 
+        # caculate the thresholds by using truth values and predictions
         if thresh_type == "roc":
             thresholds = get_optimal_threshold(pred_df, data_df)
         elif thresh_type == "pr":
@@ -72,10 +92,11 @@ def generate_sl_outputs(
         else:
             thresholds = get_optimal_threshold_mcc(pred_df, data_df)
         threshold_dict[f"{outer_i}_{inner_i}"] = thresholds
-        
+
+        # if the predictions already generated then save them
         if not os.path.exists(os.path.join(model_attrs.outputs_save_path, f"{outer_i}_{inner_i}.pkl")):
             dataloader, data_df = datahandler.get_partition_dataloader(outer_i)
-            output_df = predict_sl_values(dataloader, model)
+            output_df = predict_sl_values(dataloader, model, model_attrs.outputs_save_path, outer_i, inner_i)
             output_df.to_pickle(os.path.join(model_attrs.outputs_save_path, f"{outer_i}_{inner_i}.pkl"))
 
     with open(os.path.join(model_attrs.outputs_save_path, f"thresholds_sl_{thresh_type}.pkl"), "wb") as f:

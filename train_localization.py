@@ -97,3 +97,6 @@ if __name__ == "__main__":
 
     print("Computing subcellular localization performance on swissprot CV dataset")
     calculate_sl_metrics(model_attrs=model_attrs, datahandler=datahandler)
+
+    # print("Create a csv file to strre predictions for each protein sequence")
+    # save_protein_predictions_to_csv(model_attrs=model_attrs, datahandler=datahandler)

@@ -15,3 +15,8 @@ DeepLoc2.egg-info/
 
 # Ignore data_files
 data_files/embeddings
+
+# Ignore large output files
+outputs/esm1b
+outputs/prott5
+
