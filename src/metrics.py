@@ -121,6 +121,25 @@ def calculate_sl_metrics_fold(test_df, thresholds):
     outputs = predictions>thresholds
     actuals = np.stack(test_df["Target"].to_numpy())
 
+    # Convert predictions, outputs, and actuals back to DataFrames
+    preds_df = pd.DataFrame(predictions, columns=[
+        'Membrane', 'Cytoplasm', 'Nucleus', 'Extracellular', 'Cell membrane',
+        'Mitochondrion', 'Plastid', 'Endoplasmic reticulum', 'Lysosome/Vacuole',
+        'Golgi apparatus', 'Peroxisome'
+    ])
+
+    outputs_df = pd.DataFrame(outputs, columns=preds_df.columns)
+    actuals_df = pd.DataFrame(actuals, columns=preds_df.columns)
+
+    # Combine all into a single DataFrame
+    combined_df = pd.concat([test_df[['ACC']], preds_df, outputs_df, actuals_df], axis=1)
+
+    # Rename columns for clarity
+    combined_df.columns = ['ACC'] + \
+                          [f'pred_{col}' for col in preds_df.columns] + \
+                          [f'pred_loc_{col}' for col in preds_df.columns] + \
+                          [f'true_loc_{col}' for col in preds_df.columns]
+
     ypred_membrane = outputs[:, 0]
     ypred_subloc = outputs[:,1:]
     y_membrane = actuals[:, 0]
@@ -142,7 +161,7 @@ def calculate_sl_metrics_fold(test_df, thresholds):
 
     # for i in range(10):
     #    metrics_dict[f"{categories[1+i]}"] = roc_auc_score(y_subloc[:,i], predictions[:,i+1])
-    return metrics_dict
+    return metrics_dict, combined_df
 
 def calculate_sl_metrics(model_attrs: ModelAttributes, datahandler: DataloaderHandler, thresh_type="mcc", inner_i="1Layer"):
     with open(os.path.join(model_attrs.outputs_save_path, f"thresholds_sl_{thresh_type}.pkl"), "rb") as f:
@@ -179,19 +198,29 @@ def calculate_sl_metrics(model_attrs: ModelAttributes, datahandler: DataloaderHa
         threshold = threshold_dict[f"{outer_i}_{inner_i}"]
         
         # Calculate SL metrics for the current fold using the merged data and threshold
-        metrics_dict = calculate_sl_metrics_fold(data_df, threshold)
+        metrics_dict, combined_df = calculate_sl_metrics_fold(data_df, threshold)
+
+        # Save the combined DataFrame as a CSV file
+        current_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_csv_path = os.path.join(model_attrs.outputs_save_path, f"{outer_i}_{inner_i}_{current_timestamp}_output_predictions_with_true_values.csv")
+        
+        if not os.path.exists(os.path.dirname(output_csv_path)):
+            os.makedirs(os.path.dirname(output_csv_path))
+        
+        combined_df.to_csv(output_csv_path, index=False)
+        print(f"Saved predictions of {outer_i} {inner_i} to {output_csv_path}")
         
         # Accumulate the metrics for each fold in a dictionary
         for k in metrics_dict:
             metrics_dict_list.setdefault(k, []).append(metrics_dict[k])
 
-    # Combine all data frames from each fold into a single data frame
-    combined_df = pd.concat(full_data_df, ignore_index=True)
+    # # Combine all data frames from each fold into a single data frame
+    # combined_df = pd.concat(full_data_df, ignore_index=True)
     
-    # Save the combined data frame with specific columns to a CSV file
-    output_csv_path = os.path.join(model_attrs.outputs_save_path, "combined_true_and_predictions.csv")
-    combined_df[['ACC', 'True_Label', 'preds']].to_csv(output_csv_path, index=False)
-    print(f"Saved full data to {output_csv_path}")
+    # # Save the combined data frame with specific columns to a CSV file
+    # output_csv_path = os.path.join(model_attrs.outputs_save_path, "combined_true_and_predictions.csv")
+    # combined_df[['ACC', 'True_Label', 'preds']].to_csv(output_csv_path, index=False)
+    # print(f"Saved full data to {output_csv_path}")
 
     output_dict = {}
     for k in metrics_dict_list:

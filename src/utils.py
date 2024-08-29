@@ -103,9 +103,7 @@ def save_fasta_to_csv(fasta_dict, outputs_save_path):
     # Create DataFrame
     df = pd.DataFrame(data, columns=column_names)
     
-    # Generate timestamp for the filename
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    output_file = os.path.join(outputs_save_path, f'{timestamp}.csv')
+    output_file = os.path.join(outputs_save_path, f'fasta_readings.csv')
     
     # Ensure the output directory exists
     os.makedirs(outputs_save_path, exist_ok=True)

@@ -7,6 +7,7 @@ import torch
 from src.utils import ModelAttributes
 from src.data import DataloaderHandler
 from src.metrics import *
+from datetime import datetime
 
 if torch.cuda.is_available():
     device = "cuda"
@@ -45,12 +46,21 @@ def predict_sl_values(dataloader, model, outputs_save_path, outer_i, inner_i):
     annot_df = pd.DataFrame(annot_dict.items(), columns=['ACC', 'pred_annot'])
     pool_df = pd.DataFrame(pool_dict.items(), columns=['ACC', 'embeds'])
 
-    output_csv_path = os.path.join(outputs_save_path, f"{outer_i}_{inner_i}_output_predictions.csv")
+    current_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_csv_path = os.path.join(outputs_save_path, f"{outer_i}_{inner_i}_{current_timestamp}_output_predictions.csv")
     if not os.path.exists(os.path.dirname(output_csv_path)):
             os.makedirs(os.path.dirname(output_csv_path))
-        
+    
+    localization_columns = CATEGORIES
+
+    # Create a DataFrame for the predictions
+    preds_df = pd.DataFrame(output_df['preds'].to_list(), columns=localization_columns)
+    
+    # Combine the ACC column with the predictions DataFrame
+    output_df_csv = pd.concat([output_df[['ACC']], preds_df], axis=1)
+
     # Save the DataFrame
-    output_df.to_csv(output_csv_path, index=False)
+    output_df_csv.to_csv(output_csv_path, index=False)
     print(f"Saved predictions to {output_csv_path}")
 
     return output_df.merge(annot_df).merge(pool_df)
@@ -98,6 +108,19 @@ def generate_sl_outputs(
             dataloader, data_df = datahandler.get_partition_dataloader(outer_i)
             output_df = predict_sl_values(dataloader, model, model_attrs.outputs_save_path, outer_i, inner_i)
             output_df.to_pickle(os.path.join(model_attrs.outputs_save_path, f"{outer_i}_{inner_i}.pkl"))
+
+
+    # Convert the threshold dictionary to a DataFrame
+    threshold_df = pd.DataFrame.from_dict(threshold_dict, orient='index', columns=[
+        CATEGORIES
+    ])
+
+    current_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Save the thresholds as a CSV file
+    threshold_csv_path = os.path.join(model_attrs.outputs_save_path, f"thresholds_sl_{current_timestamp}_{thresh_type}.csv")
+    threshold_df.to_csv(threshold_csv_path)
+
+    print(f"Thresholds saved to {threshold_csv_path}")
 
     with open(os.path.join(model_attrs.outputs_save_path, f"thresholds_sl_{thresh_type}.pkl"), "wb") as f:
         pickle.dump(threshold_dict, f)

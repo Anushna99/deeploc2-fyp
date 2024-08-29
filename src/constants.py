@@ -23,7 +23,8 @@ EMBEDDINGS = {
 SIGNAL_DATA = "data_files/multisub_ninesignals.pkl"
 LOCALIZATION_DATA = "./data_files/multisub_5_partitions_unique.csv"
 
-BATCH_SIZE = 128
+# hyper parameters that can change
+BATCH_SIZE = 128 
 SUP_LOSS_MULT = 0.1
 REG_LOSS_MULT = 0.1
 
