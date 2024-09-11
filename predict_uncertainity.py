@@ -133,9 +133,9 @@ def calculate_uncertainty(input_file, output_file):
 
     # Process each row in the DataFrame
     for index, row in df.iterrows():
-        # Initialize lists to store predictions and uncertainty strings
+        # Initialize lists to store mean predictions and variance uncertainty
         mean_predictions = []
-        uncertainty_strings = []
+        variance_uncertainties = []
 
         for category in categories:
             # Ensure the value is a string, then split and convert to float
@@ -149,33 +149,33 @@ def calculate_uncertainty(input_file, output_file):
             mean_pred = np.mean(pred_values)
             mean_predictions.append(mean_pred)
 
-            # Calculate variance, entropy, and confidence uncertainties
+            # Calculate variance uncertainty
             variance_uncertainty = np.var(pred_values)
-            entropy_uncertainty = entropy([mean_pred])
-            confidence_uncertainty = 1 - mean_pred
+            variance_uncertainties.append(variance_uncertainty)
 
-            # Format the uncertainties as "vu:x eu:y cu:z"
-            uncertainty_str = f"vu:{variance_uncertainty:.3f} eu:{entropy_uncertainty:.3f} cu:{confidence_uncertainty:.3f}"
-            uncertainty_strings.append(uncertainty_str)
-
-            # Update the DataFrame with the formatted mean prediction and uncertainties
-            df.at[index, f'pred_{category}'] = f"{mean_pred:.3f} ({uncertainty_str})"
+            # Update the DataFrame with the formatted mean prediction and variance uncertainty
+            df.at[index, f'pred_{category}'] = f"{mean_pred:.8f} (var:{variance_uncertainty:.8f})"
 
     # Save the updated DataFrame to the output file
     df.to_csv(output_file, index=False)
-    print(f"Uncertainty measures and formatted predictions saved to {output_file}")
+    print(f"Mean predictions and variance uncertainties saved to {output_file}")
 
-# input_folder = 'outputs/esm1b'
+
+input_folder = 'outputs/esm1b'
 output_folder = 'outputs/training_results'
-aggregated_predictions_file = os.path.join(output_folder, 'aggregated_predictions.csv') 
+## create output files combining true values
+# process_all_files(input_folder, output_folder)
+aggregated_predictions_file = os.path.join(output_folder, 'aggregated_predictions_&_true_values.csv') 
+## save a one file combinging all the true labels and predictions
+# aggregate_predictions(input_folder=output_folder, output_file=aggregated_predictions_file)
 
-# # The output file path
-# final_output_file = os.path.join(output_folder, 'final_aggregated_predictions_with_labels.csv')
+# # # The output file path
+final_output_file = os.path.join(output_folder, 'final_aggregated_predictions_with_labels.csv')
 
 # # Run the function
 # aggregate_predictions_and_add_labels(input_folder, final_output_file, aggregated_predictions_file)
 
-input_file = aggregated_predictions_file
-output_file = os.path.join(output_folder, 'uncertainity_values.csv')
-calculate_uncertainty(input_file, output_file)
+input_file_for_uncertainity = final_output_file
+output_file_for_uncertainity_results = os.path.join(output_folder, 'uncertainity_values.csv')
+calculate_uncertainty(input_file_for_uncertainity, output_file_for_uncertainity_results)
 
