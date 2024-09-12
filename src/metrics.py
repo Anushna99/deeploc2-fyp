@@ -100,11 +100,15 @@ def get_optimal_threshold_pr(output_df, data_df):
 
     return optimal_thresholds
 
+import numpy as np
+
 def get_optimal_threshold_mcc(output_df, data_df):
     '''
     To find the threshold that maximizes the Matthews Correlation Coefficient (MCC), which measures the quality of binary classifications.
     '''
-    test_df = data_df.merge(output_df)
+    test_df = data_df.merge(output_df)  
+    print('output df', output_df)
+    print('testdf', test_df)
     
     predictions = np.stack(test_df["preds"].to_numpy())
     actuals = np.stack(test_df["Target"].to_numpy())

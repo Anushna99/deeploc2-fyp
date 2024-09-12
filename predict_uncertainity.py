@@ -3,6 +3,7 @@ import os
 from src.constants import *
 import numpy as np
 from scipy.stats import entropy
+import matplotlib.pyplot as plt
 
 def process_csv_file(input_file, output_file):
     # Read the CSV file
@@ -160,6 +161,67 @@ def calculate_uncertainty(input_file, output_file):
     df.to_csv(output_file, index=False)
     print(f"Mean predictions and variance uncertainties saved to {output_file}")
 
+def extract_variance(value):
+    """Extract the variance value from a string of the form 'prediction (var:variance)'."""
+    try:
+        variance = float(value.split('(var:')[1].replace(')', ''))
+        return variance
+    except (IndexError, ValueError):
+        return np.nan  # Return NaN if the format is incorrect
+
+def calculate_variance_distribution(input_file, output_file, graph_folder):
+    # Load the CSV file
+    df = pd.read_csv(input_file)
+
+    # Define the prediction columns (those starting with 'pred_')
+    prediction_columns = [col for col in df.columns if col.startswith('pred_')]
+
+    # Create an empty DataFrame to store the mean and std deviation of variance for each category
+    variance_stats = pd.DataFrame(columns=['Category', 'Mean Variance', 'Std Deviation'])
+
+    # Ensure the graph folder exists
+    if not os.path.exists(graph_folder):
+        os.makedirs(graph_folder)
+
+    # Iterate through each prediction column to extract variances and calculate statistics
+    for column in prediction_columns:
+        # Extract variances for the current column
+        df[f'{column}_variance'] = df[column].apply(extract_variance)
+        
+        # Calculate mean and standard deviation of variances
+        mean_variance = df[f'{column}_variance'].mean()
+        std_variance = df[f'{column}_variance'].std()
+
+        # Add the stats to the variance_stats DataFrame
+        new_row = pd.DataFrame([{
+            'Category': column.replace('pred_', ''),
+            'Mean Variance': mean_variance,
+            'Std Deviation': std_variance
+        }])
+
+        variance_stats = pd.concat([variance_stats, new_row], ignore_index=True)
+
+        # Plot the variance distribution for the current column
+        plt.figure(figsize=(8, 6))
+        plt.hist(df[f'{column}_variance'].dropna(), bins=50, color='blue', edgecolor='black', alpha=0.7)
+        plt.title(f'Variance Distribution for {column.replace("pred_", "")}')
+        plt.xlabel('Variance')
+        plt.ylabel('Frequency')
+
+        # Save the graph to the specified folder
+        graph_path = os.path.join(graph_folder, f'{column.replace("pred_", "")}_variance_distribution.png')
+        graph_subfolder = os.path.dirname(graph_path)
+        if not os.path.exists(graph_subfolder):
+            os.makedirs(graph_subfolder)
+
+        plt.savefig(graph_path)
+        plt.close()
+
+    # Save the variance stats to a CSV file with the correct columns
+    variance_stats.to_csv(output_file, index=False)
+    print(f"Variance statistics saved to {output_file}")
+    print(f"Graphs saved to {graph_folder}")
+
 
 input_folder = 'outputs/esm1b'
 output_folder = 'outputs/training_results'
@@ -177,5 +239,11 @@ final_output_file = os.path.join(output_folder, 'final_aggregated_predictions_wi
 
 input_file_for_uncertainity = final_output_file
 output_file_for_uncertainity_results = os.path.join(output_folder, 'uncertainity_values.csv')
-calculate_uncertainty(input_file_for_uncertainity, output_file_for_uncertainity_results)
+# calculate_uncertainty(input_file_for_uncertainity, output_file_for_uncertainity_results)
+
+input_file_of_uncertainity_values = output_file_for_uncertainity_results
+output_file_for_uncertainity_variance = os.path.join(output_folder, 'variance_statistics.csv')
+graph_output = output_folder + '/graphs'
+calculate_variance_distribution(input_file_of_uncertainity_values, output_file_for_uncertainity_variance, graph_output)
+
 

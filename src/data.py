@@ -1,4 +1,5 @@
 import pickle
+import random
 import torch
 from Bio import SeqIO
 import re
@@ -49,8 +50,8 @@ class FastaBatchedDatasetTorch(torch.utils.data.Dataset):
             batches.append(buf)
             buf = []
             max_len = 0
-        start = 0
-        #start = random.randint(0, len(sizes))
+        # start = 0
+        start = random.randint(0, len(sizes))
         for j in range(len(sizes)):
             i = (start + j) % len(sizes)
             sz = sizes[i][0]
@@ -190,6 +191,43 @@ def get_swissprot_df(clip_len):
 
     return data_df
 
+def get_hpa_df(clip_len):
+    with open(HPA_SIGNAL_DATA, "rb") as f:
+        # This DataFrame contains annotations related to the proteins in the HPA dataset.
+        annot_df = pd.compat.pickle_compat.load(f)
+    
+    hpa_exclusion_list = ['LIST', 'OF', 'ACCESSIONS', 'TO', 'EXCLUDE']  # Update this list with actual HPA exclusions if necessary
+    
+    # These functions ensure that sequences longer than clip_len are trimmed to include only the middle portion.
+    def clip_middle_np(x):
+        if len(x) > clip_len:
+            x = np.concatenate((x[:clip_len//2], x[-clip_len//2:]), axis=0)
+        return x
+
+    def clip_middle(x):
+        if len(x) > clip_len:
+            x = x[:clip_len//2] + x[-clip_len//2:]
+        return x
+
+    # Apply the clipping to annotations
+    annot_df["TargetAnnot"] = annot_df["ANNOT"].apply(lambda x: clip_middle_np(x))
+    
+    # Load HPA localization data, apply sequence clipping and merge with annotation data
+    hpa_data_df = pd.read_csv(HPA_LOCALIZATION_DATA)  # Update with the correct file path for HPA data
+    hpa_data_df["Sequence"] = hpa_data_df["Sequence"].apply(lambda x: clip_middle(x))
+    hpa_data_df["Target"] = hpa_data_df[CATEGORIES].values.tolist()    
+
+    # Exclude specific accessions if necessary
+    annot_df = annot_df[~annot_df.ACC.isin(hpa_exclusion_list)].reset_index(drop=True)
+    hpa_data_df = hpa_data_df[~hpa_data_df.ACC.isin(hpa_exclusion_list)].reset_index(drop=True)
+    
+    # Merge the HPA annotation data with the localization data
+    hpa_data_df = hpa_data_df.merge(annot_df[["ACC", "ANNOT", "Types", "TargetAnnot"]], on="ACC", how="left")
+    hpa_data_df['TargetAnnot'] = hpa_data_df['TargetAnnot'].fillna(0)
+
+    # Return the HPA data with necessary columns
+    return hpa_data_df
+
 def convert_to_binary(x):
     types_binary = np.zeros((len(SS_CATEGORIES)-1,))
     for c in x.split("_"):
@@ -279,8 +317,8 @@ class EmbeddingsLocalizationDataset(torch.utils.data.Dataset):
             batches.append(buf)
             buf = []
             max_len = 0
-        start = 0
-        #start = random.randint(0, len(sizes))
+        # start = 0
+        start = random.randint(0, len(sizes))
         for j in range(len(sizes)):
             i = (start + j) % len(sizes)
             sz = sizes[i][0]
@@ -393,6 +431,57 @@ class DataloaderHandler:
                                                     num_workers=self.num_workers,
                                                     pin_memory=True) # use pin_memory to utilize more gpu
         return train_dataloader, val_dataloader
+
+    def get_train_val_dataloaders_from_both(self, outer_i):
+        # Load SwissProt data for training
+        swissprot_df = get_swissprot_df(self.clip_len)  # Assume SwissProt data has sequences clipped to clip_len
+        
+        # Split SwissProt data for training only, no validation from this dataset
+        train_df = swissprot_df.reset_index(drop=True)
+        
+        # Shuffle and split for training
+        X = np.stack(train_df["ACC"].to_numpy())
+        sss_tt = ShuffleSplit(n_splits=1, test_size=0, random_state=0)  # No test size, use all data for training
+        (split_train_idx, _) = next(sss_tt.split(X))
+        split_train_df = train_df.iloc[split_train_idx].reset_index(drop=True)
+        
+        # Check the data distribution (optional, for debugging purposes)
+        print("Training Data (SwissProt):", split_train_df[CATEGORIES].mean())
+        
+        # Load the HPA dataset for validation
+        hpa_df = get_hpa_df(self.clip_len)  # Assuming you have a function like this to load HPA data similarly to SwissProt
+        val_df = hpa_df.reset_index(drop=True)  # No need to shuffle HPA, it's strictly for validation
+        
+        # Check the HPA data distribution for validation
+        print("Validation Data (HPA):", val_df[CATEGORIES].mean())
+        
+        # Embedding file (common for both datasets)
+        embedding_file = h5py.File(self.embedding_file, "r")
+        
+        # Create datasets and dataloaders for training and validation
+        train_dataset = EmbeddingsLocalizationDataset(embedding_file, split_train_df)
+        train_batches = train_dataset.get_batch_indices(4096*4, BATCH_SIZE, extra_toks_per_seq=0)
+        train_dataloader = torch.utils.data.DataLoader(
+            train_dataset, 
+            collate_fn=TrainBatchConverter(self.alphabet, self.embed_len), 
+            batch_sampler=train_batches, 
+            num_workers=self.num_workers, 
+            pin_memory=True  # Use pin_memory to utilize more GPU memory
+        )
+        
+        val_dataset = EmbeddingsLocalizationDataset(embedding_file, val_df)  # Validation on HPA dataset
+        val_batches = val_dataset.get_batch_indices(4096*4, BATCH_SIZE, extra_toks_per_seq=0)
+        val_dataloader = torch.utils.data.DataLoader(
+            val_dataset, 
+            collate_fn=TrainBatchConverter(self.alphabet, self.embed_len), 
+            batch_sampler=val_batches, 
+            num_workers=self.num_workers, 
+            pin_memory=True  # Use pin_memory to utilize more GPU memory
+        )
+    
+        return train_dataloader, val_dataloader
+
+
 
     def get_partition(self, outer_i):
         data_df = get_swissprot_df(self.clip_len )
