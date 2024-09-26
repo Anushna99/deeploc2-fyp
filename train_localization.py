@@ -17,6 +17,19 @@ warnings.filterwarnings(
 def train_model(model_attrs: ModelAttributes, datahandler:DataloaderHandler, outer_i: int):
     train_dataloader, val_dataloader = datahandler.get_train_val_dataloaders(outer_i) # Gets training and validation data loaders for the current model iteration.
 
+     # Check and print the first batch from the train and validation dataloaders
+    for batch_idx, batch in enumerate(train_dataloader):
+        print(f"Training Batch {batch_idx}:")
+        for i, item in enumerate(batch):
+            print(f"  Item {i} (Training): {item}")
+        break  # Print only the first batch for validation
+
+    for batch_idx, batch in enumerate(val_dataloader):
+        print(f"Validation Batch {batch_idx}:")
+        for i, item in enumerate(batch):
+            print(f"  Item {i} (Validation): {item}")
+        break  # Print only the first batch for validation
+    
     # Saves the model’s weights whenever the bce_loss (binary cross-entropy loss) improves.
     # Saves the best model weights based on validation performance.
     # Saves every epoch to keep track of progress.
@@ -53,6 +66,30 @@ def train_model(model_attrs: ModelAttributes, datahandler:DataloaderHandler, out
     trainer.fit(clf, train_dataloader, val_dataloader)
     return trainer
 
+def test_model(model_attrs: ModelAttributes):
+    # Get the necessary attributes
+    alphabet = model_attrs.alphabet
+    embed_len = model_attrs.embed_len
+
+    # Get the HPA test dataloader
+    test_dataloader = HPATestDataset.get_hpa_test_dataloader(alphabet, embed_len)
+
+    # Load the best checkpoint for the model
+    checkpoint_path = os.path.join(model_attrs.save_path, f"{4}_1Layer.ckpt")
+    clf = model_attrs.class_type.load_from_checkpoint(checkpoint_path)
+
+    # Initialize trainer (ensure same precision and settings)
+    trainer = pl.Trainer(precision="16-mixed", accelerator="auto")
+
+    # Run the test phase
+    trainer.test(clf, dataloaders=test_dataloader)
+
+    # Concatenate all DataFrames collected in clf.predictions
+    df_results = pd.concat(clf.predictions, ignore_index=True)
+
+    return df_results
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
@@ -68,7 +105,7 @@ if __name__ == "__main__":
     model_attrs = get_train_model_attributes(model_type=args.model) # fetching model attributes according to the user iinput
     if not os.path.exists(model_attrs.embedding_file):
         print("Embeddings not found, generating......")
-        generate_embeddings(model_attrs)
+        generate_embeddings(model_attrs, is_training=True)
         print("Embeddings created!")
     else:
         print("Using existing embeddings")
@@ -99,5 +136,32 @@ if __name__ == "__main__":
     print("Computing subcellular localization performance on swissprot CV dataset")
     calculate_sl_metrics(model_attrs=model_attrs, datahandler=datahandler)
 
-    # print("Create a csv file to strre predictions for each protein sequence")
-    # save_protein_predictions_to_csv(model_attrs=model_attrs, datahandler=datahandler)
+    if model_attrs.model_type == FAST :
+            model_attrs.embedding_file = EMBEDDINGS[TEST_ESM]["embeds"]
+    else :
+            model_attrs.embedding_file = EMBEDDINGS[TEST_PROTT5]["embeds"]
+
+    print(f"Embedding file selected: {model_attrs.embedding_file}")
+
+    if not os.path.exists(model_attrs.embedding_file):
+        print("Embeddings not found for testing, generating......")
+        generate_embeddings(model_attrs, is_training=False)
+        print("New embeddings created for testing!")
+    else:
+        print("Using existing embeddings")
+
+    # Testing phase
+    print("Testing trained models on new datasets")
+    
+    # Collect the results DataFrame from the test phase
+    df_test_results = test_model(model_attrs)
+
+    # Print out the first few rows of the results for verification
+    print(df_test_results.head())
+
+    # Save the results DataFrame to a CSV file
+    csv_file_path = os.path.join(model_attrs.save_path, 'test_results.csv')
+    df_test_results.to_csv(csv_file_path, index=False)
+    
+    print(f"Test results saved to: {csv_file_path}")
+    print("Finished testing subcellular localization models")

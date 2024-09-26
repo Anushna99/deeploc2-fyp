@@ -92,7 +92,8 @@ def get_train_model_attributes(model_type):
         raise Exception("wrong model type provided expected Fast,Accurate got", model_type)
     
 
-def save_fasta_to_csv(fasta_dict, outputs_save_path):
+def save_fasta_to_csv(fasta_dict, outputs_save_path, type):
+    print('type', type)
     data = []
     for protein_id, sequence in fasta_dict.items():
         data.append([protein_id, sequence])
@@ -103,7 +104,7 @@ def save_fasta_to_csv(fasta_dict, outputs_save_path):
     # Create DataFrame
     df = pd.DataFrame(data, columns=column_names)
     
-    output_file = os.path.join(outputs_save_path, f'fasta_readings.csv')
+    output_file = os.path.join(outputs_save_path, f'fasta_readings_{type}.csv')
     
     # Ensure the output directory exists
     os.makedirs(outputs_save_path, exist_ok=True)

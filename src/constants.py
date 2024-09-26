@@ -4,6 +4,8 @@ SS_CATEGORIES = ["NULL", "SP", "TM", "MT", "CH", "TH", "NLS", "NES", "PTS", "GPI
 
 FAST = "Fast"
 ACCURATE = "Accurate"
+TEST_ESM = "Test_esm"
+TEST_PROTT5 = "Test_prott5"
 
 # An HDF5 (Hierarchical Data Format version 5) file, denoted with the .h5 extension, is a binary data format used for storing 
 # large amounts of numerical data.
@@ -17,6 +19,16 @@ EMBEDDINGS = {
         "embeds": "data_files/embeddings/prott5_swissprot.h5",
         "config": "swissprot_prott5.yaml",
         "source_fasta": "data_files/deeploc_swissprot_clipped4k.fasta"
+    },
+    TEST_ESM:{
+        "embeds": "data_files/embeddings/esm1b_hpa.h5",
+        "config": "hpa_esm1b.yaml",
+        "source_fasta": "data_files/deeploc_hpa_clipped1k.fasta"
+    },
+    TEST_PROTT5:{
+        "embeds": "data_files/embeddings/prott5_hpa.h5",
+        "config": "hpa_t5.yaml",
+        "source_fasta": "data_files/deeploc_hpa_clipped4k.fasta"
     }
 }
 

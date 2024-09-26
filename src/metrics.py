@@ -107,8 +107,6 @@ def get_optimal_threshold_mcc(output_df, data_df):
     To find the threshold that maximizes the Matthews Correlation Coefficient (MCC), which measures the quality of binary classifications.
     '''
     test_df = data_df.merge(output_df)  
-    print('output df', output_df)
-    print('testdf', test_df)
     
     predictions = np.stack(test_df["preds"].to_numpy())
     actuals = np.stack(test_df["Target"].to_numpy())
@@ -171,13 +169,6 @@ def calculate_sl_metrics(model_attrs: ModelAttributes, datahandler: DataloaderHa
     with open(os.path.join(model_attrs.outputs_save_path, f"thresholds_sl_{thresh_type}.pkl"), "rb") as f:
         threshold_dict = pickle.load(f)
     
-    # Calculate mean thresholds
-    threshold_values = np.array(list(threshold_dict.values()))
-    print("Mean of the threshold values per dimension:")
-    for i, threshold_mean in enumerate(threshold_values.mean(axis=0)):
-        print(f"Dimension {i}: {threshold_mean}")
-    print("Overall mean of threshold values:", threshold_values.mean())
-    
     # Initialize an empty dictionary to store metrics for each fold
     metrics_dict_list = {}
     
@@ -205,14 +196,14 @@ def calculate_sl_metrics(model_attrs: ModelAttributes, datahandler: DataloaderHa
         metrics_dict, combined_df = calculate_sl_metrics_fold(data_df, threshold)
 
         # Save the combined DataFrame as a CSV file
-        current_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_csv_path = os.path.join(model_attrs.outputs_save_path, f"{outer_i}_{inner_i}_{current_timestamp}_output_predictions_with_true_values.csv")
+        # current_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # output_csv_path = os.path.join(model_attrs.outputs_save_path, f"{outer_i}_{inner_i}_{current_timestamp}_output_predictions_with_true_values.csv")
         
-        if not os.path.exists(os.path.dirname(output_csv_path)):
-            os.makedirs(os.path.dirname(output_csv_path))
+        # if not os.path.exists(os.path.dirname(output_csv_path)):
+        #     os.makedirs(os.path.dirname(output_csv_path))
         
-        combined_df.to_csv(output_csv_path, index=False)
-        print(f"Saved predictions of {outer_i} {inner_i} to {output_csv_path}")
+        # combined_df.to_csv(output_csv_path, index=False)
+        # print(f"Saved predictions of {outer_i} {inner_i} to {output_csv_path}")
         
         # Accumulate the metrics for each fold in a dictionary
         for k in metrics_dict:

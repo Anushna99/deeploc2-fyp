@@ -1,5 +1,4 @@
 import pickle
-import random
 import torch
 from Bio import SeqIO
 import re
@@ -50,8 +49,8 @@ class FastaBatchedDatasetTorch(torch.utils.data.Dataset):
             batches.append(buf)
             buf = []
             max_len = 0
-        # start = 0
-        start = random.randint(0, len(sizes))
+        start = 0
+        #start = random.randint(0, len(sizes))
         for j in range(len(sizes)):
             i = (start + j) % len(sizes)
             sz = sizes[i][0]
@@ -191,43 +190,6 @@ def get_swissprot_df(clip_len):
 
     return data_df
 
-def get_hpa_df(clip_len):
-    with open(HPA_SIGNAL_DATA, "rb") as f:
-        # This DataFrame contains annotations related to the proteins in the HPA dataset.
-        annot_df = pd.compat.pickle_compat.load(f)
-    
-    hpa_exclusion_list = ['LIST', 'OF', 'ACCESSIONS', 'TO', 'EXCLUDE']  # Update this list with actual HPA exclusions if necessary
-    
-    # These functions ensure that sequences longer than clip_len are trimmed to include only the middle portion.
-    def clip_middle_np(x):
-        if len(x) > clip_len:
-            x = np.concatenate((x[:clip_len//2], x[-clip_len//2:]), axis=0)
-        return x
-
-    def clip_middle(x):
-        if len(x) > clip_len:
-            x = x[:clip_len//2] + x[-clip_len//2:]
-        return x
-
-    # Apply the clipping to annotations
-    annot_df["TargetAnnot"] = annot_df["ANNOT"].apply(lambda x: clip_middle_np(x))
-    
-    # Load HPA localization data, apply sequence clipping and merge with annotation data
-    hpa_data_df = pd.read_csv(HPA_LOCALIZATION_DATA)  # Update with the correct file path for HPA data
-    hpa_data_df["Sequence"] = hpa_data_df["Sequence"].apply(lambda x: clip_middle(x))
-    hpa_data_df["Target"] = hpa_data_df[CATEGORIES].values.tolist()    
-
-    # Exclude specific accessions if necessary
-    annot_df = annot_df[~annot_df.ACC.isin(hpa_exclusion_list)].reset_index(drop=True)
-    hpa_data_df = hpa_data_df[~hpa_data_df.ACC.isin(hpa_exclusion_list)].reset_index(drop=True)
-    
-    # Merge the HPA annotation data with the localization data
-    hpa_data_df = hpa_data_df.merge(annot_df[["ACC", "ANNOT", "Types", "TargetAnnot"]], on="ACC", how="left")
-    hpa_data_df['TargetAnnot'] = hpa_data_df['TargetAnnot'].fillna(0)
-
-    # Return the HPA data with necessary columns
-    return hpa_data_df
-
 def convert_to_binary(x):
     types_binary = np.zeros((len(SS_CATEGORIES)-1,))
     for c in x.split("_"):
@@ -297,7 +259,12 @@ class EmbeddingsLocalizationDataset(torch.utils.data.Dataset):
         and protein ID (ACC) from the DataFrame and the embeddings file.
         '''
         embedding = np.array(self.embeddings_file[self.data_df["ACC"][index]]).copy()
-        return self.data_df["Sequence"][index], embedding, self.data_df["Target"][index], self.data_df["TargetAnnot"][index], self.data_df["ACC"][index]
+        # Check if the 'Target' column exists, otherwise return None
+        target = self.data_df["Target"][index] if "Target" in self.data_df.columns else None
+        # Check if the 'TargetAnnot' column exists, otherwise return None
+        target_annot = self.data_df["TargetAnnot"][index] if "TargetAnnot" in self.data_df.columns else None
+
+        return self.data_df["Sequence"][index], embedding, target, target_annot, self.data_df["ACC"][index]
     
     def get_batch_indices(self, toks_per_batch, max_batch_size, extra_toks_per_seq=0):
         '''
@@ -317,8 +284,8 @@ class EmbeddingsLocalizationDataset(torch.utils.data.Dataset):
             batches.append(buf)
             buf = []
             max_len = 0
-        # start = 0
-        start = random.randint(0, len(sizes))
+        start = 0
+        #start = random.randint(0, len(sizes))
         for j in range(len(sizes)):
             i = (start + j) % len(sizes)
             sz = sizes[i][0]
@@ -432,57 +399,6 @@ class DataloaderHandler:
                                                     pin_memory=True) # use pin_memory to utilize more gpu
         return train_dataloader, val_dataloader
 
-    def get_train_val_dataloaders_from_both(self, outer_i):
-        # Load SwissProt data for training
-        swissprot_df = get_swissprot_df(self.clip_len)  # Assume SwissProt data has sequences clipped to clip_len
-        
-        # Split SwissProt data for training only, no validation from this dataset
-        train_df = swissprot_df.reset_index(drop=True)
-        
-        # Shuffle and split for training
-        X = np.stack(train_df["ACC"].to_numpy())
-        sss_tt = ShuffleSplit(n_splits=1, test_size=0, random_state=0)  # No test size, use all data for training
-        (split_train_idx, _) = next(sss_tt.split(X))
-        split_train_df = train_df.iloc[split_train_idx].reset_index(drop=True)
-        
-        # Check the data distribution (optional, for debugging purposes)
-        print("Training Data (SwissProt):", split_train_df[CATEGORIES].mean())
-        
-        # Load the HPA dataset for validation
-        hpa_df = get_hpa_df(self.clip_len)  # Assuming you have a function like this to load HPA data similarly to SwissProt
-        val_df = hpa_df.reset_index(drop=True)  # No need to shuffle HPA, it's strictly for validation
-        
-        # Check the HPA data distribution for validation
-        print("Validation Data (HPA):", val_df[CATEGORIES].mean())
-        
-        # Embedding file (common for both datasets)
-        embedding_file = h5py.File(self.embedding_file, "r")
-        
-        # Create datasets and dataloaders for training and validation
-        train_dataset = EmbeddingsLocalizationDataset(embedding_file, split_train_df)
-        train_batches = train_dataset.get_batch_indices(4096*4, BATCH_SIZE, extra_toks_per_seq=0)
-        train_dataloader = torch.utils.data.DataLoader(
-            train_dataset, 
-            collate_fn=TrainBatchConverter(self.alphabet, self.embed_len), 
-            batch_sampler=train_batches, 
-            num_workers=self.num_workers, 
-            pin_memory=True  # Use pin_memory to utilize more GPU memory
-        )
-        
-        val_dataset = EmbeddingsLocalizationDataset(embedding_file, val_df)  # Validation on HPA dataset
-        val_batches = val_dataset.get_batch_indices(4096*4, BATCH_SIZE, extra_toks_per_seq=0)
-        val_dataloader = torch.utils.data.DataLoader(
-            val_dataset, 
-            collate_fn=TrainBatchConverter(self.alphabet, self.embed_len), 
-            batch_sampler=val_batches, 
-            num_workers=self.num_workers, 
-            pin_memory=True  # Use pin_memory to utilize more GPU memory
-        )
-    
-        return train_dataloader, val_dataloader
-
-
-
     def get_partition(self, outer_i):
         data_df = get_swissprot_df(self.clip_len )
         test_df = data_df[data_df.Partition == outer_i].reset_index(drop=True)
@@ -555,6 +471,94 @@ class DataloaderHandler:
     
     def get_swissprot_ss_xy(self, save_path, outer_i):
         return get_swissprot_ss_Xy(save_path=save_path, fold=outer_i, clip_len=self.clip_len)
+    
+
+class HPATestDataset(torch.utils.data.Dataset):
+    """
+    Dataset to handle HPA test embeddings and sequence identifiers.
+    """
+
+    def __init__(self, embedding_file):
+        super().__init__()
+        self.embedding_file = embedding_file
+        self.keys = list(embedding_file.keys())
+
+    def __getitem__(self, index):
+        """
+        Returns the sequence embedding and its identifier (ACC) for a given index.
+        """
+        acc = self.keys[index]
+        embedding = self.embedding_file[acc][:]
+        return embedding, acc
+
+    def __len__(self):
+        return len(self.keys)
+
+
+    def get_hpa_test_dataloader(alphabet, embed_len, batch_size=32, num_workers=7):
+        """
+        This function creates a DataLoader for the HPA test dataset.
+        Args:
+            alphabet: Object containing token indices and other attributes for batch conversion.
+            embed_len: Length of the embedding dimension.
+            batch_size: Number of sequences in each batch.
+            num_workers: Number of workers for data loading.
+        Returns:
+            test_dataloader: DataLoader to iterate through HPA test data.
+        """
+
+        embedding_file_temp = h5py.File('data_files/embeddings/esm1b_swissprot.h5', "r")
+        
+        keys_temp = list(embedding_file_temp.keys())
+        print(f"Number of sequences in the embedding file: {len(keys_temp)}")
+
+        # Load the HPA embedding file
+        embedding_file = h5py.File('data_files/embeddings/esm1b_hpa.h5', "r")
+        
+        keys = list(embedding_file.keys())
+        print(f"Number of sequences in the embedding file: {len(keys)}")
+        # Create the test dataset
+        test_dataset = HPATestDataset(embedding_file)
+
+        # Define a collate function to convert raw batches into processed batches
+        def collate_fn(raw_batch):
+            """
+            Converts the raw batch of (embedding, ACC) into tensors compatible with the model.
+            """
+            batch_size = len(raw_batch)
+            embeddings, acc_list = zip(*raw_batch)
+            max_len = max(embedding.shape[0] for embedding in embeddings)
+
+            # Prepare tensors
+            embedding_tensor = torch.zeros((batch_size, max_len, embed_len), dtype=torch.float32)
+            lengths = torch.zeros(batch_size, dtype=torch.int64)
+
+            for i, embedding in enumerate(embeddings):
+                length = embedding.shape[0]
+                embedding_tensor[i, :length, :] = torch.tensor(embedding)
+                lengths[i] = length
+
+            # Create a non-padding mask (all True since embeddings do not have padding)
+            non_pad_mask = torch.ones_like(embedding_tensor[:, :, 0], dtype=torch.bool)
+
+            return embedding_tensor, lengths, non_pad_mask, acc_list
+
+        # Create the DataLoader
+        test_dataloader = torch.utils.data.DataLoader(
+            test_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True,
+            collate_fn=collate_fn
+        )
+        num_sequences = len(test_dataloader.dataset)
+        print(f"Number of sequences in the dataloader: {num_sequences}")
+
+        return test_dataloader
+
+
+
 
 
 

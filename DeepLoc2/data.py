@@ -3,7 +3,7 @@ import torch
 from Bio import SeqIO
 import re
 
-class FastaBatchedDatasetTorch(torch.utils.data.Dataset):
+class  FastaBatchedDatasetTorch(torch.utils.data.Dataset):
     def __init__(self, data_df):
         self.data_df = data_df
 

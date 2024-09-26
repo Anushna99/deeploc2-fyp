@@ -46,10 +46,10 @@ def predict_sl_values(dataloader, model, outputs_save_path, outer_i, inner_i):
     annot_df = pd.DataFrame(annot_dict.items(), columns=['ACC', 'pred_annot'])
     pool_df = pd.DataFrame(pool_dict.items(), columns=['ACC', 'embeds'])
 
-    current_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_csv_path = os.path.join(outputs_save_path, f"{outer_i}_{inner_i}_{current_timestamp}_output_predictions.csv")
-    if not os.path.exists(os.path.dirname(output_csv_path)):
-            os.makedirs(os.path.dirname(output_csv_path))
+    # current_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # output_csv_path = os.path.join(outputs_save_path, f"{outer_i}_{inner_i}_{current_timestamp}_output_predictions.csv")
+    # if not os.path.exists(os.path.dirname(output_csv_path)):
+    #         os.makedirs(os.path.dirname(output_csv_path))
     
     localization_columns = CATEGORIES
 
@@ -60,8 +60,8 @@ def predict_sl_values(dataloader, model, outputs_save_path, outer_i, inner_i):
     output_df_csv = pd.concat([output_df[['ACC']], preds_df], axis=1)
 
     # Save the DataFrame
-    output_df_csv.to_csv(output_csv_path, index=False)
-    print(f"Saved predictions to {output_csv_path}")
+    # output_df_csv.to_csv(output_csv_path, index=False)
+    # print(f"Saved predictions to {output_csv_path}")
 
     return output_df.merge(annot_df).merge(pool_df)
     

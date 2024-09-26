@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from .attr_prior import *
 from src.constants import *
+import pandas as pd
 
 
 pos_weights_bce = torch.tensor([1,1,1,3,2.3,4,9.5,4.5,6.6,7.7,32])
@@ -58,6 +59,7 @@ class BaseModel(pl.LightningModule):
         self.clf_head = nn.Linear(256, 11)
         self.kld = nn.KLDivLoss(reduction="batchmean")
         self.lr = 1e-3
+        self.predictions = []
 
     def forward(self, embedding, lens, non_mask):
         x = self.initial_ln(embedding)
@@ -137,7 +139,32 @@ class BaseModel(pl.LightningModule):
                 'bce_loss': bce_loss,
                 'seq_count': seq_count}
     
+    def test_step(self, batch, batch_idx):
+        # Unpack the batch
+        x, l, n, seq_id = batch
+        print(f"Embedding shape: {x.shape}")
 
+        # Forward pass to get predictions
+        y_pred, y_attns = self.forward(x, l, n)
+
+        # Apply a threshold to convert logits to probabilities
+        y_prob = torch.sigmoid(y_pred)
+
+        # Collect results as dictionaries
+        results = []
+        for i in range(y_prob.shape[0]):
+            results.append({
+                'seq_id': seq_id[i],
+                **{CATEGORIES[j]: y_prob[i, j].item() for j in range(y_prob.shape[1])}
+            })
+
+        # Convert the results to a DataFrame and accumulate in self.predictions
+        df_predictions = pd.DataFrame(results)
+        self.predictions.append(df_predictions)
+
+        print(df_predictions.head(2))
+        return df_predictions
+    
 class ProtT5Frozen(BaseModel):
     def __init__(self):
         super().__init__(1024)
