@@ -145,7 +145,7 @@ class BaseModel(pl.LightningModule):
         print(f"Embedding shape: {x.shape}")
 
         # Forward pass to get predictions
-        y_pred, y_attns = self.forward(x, l, n)
+        y_pred, x_pool, y_attns = self.predict(x, l, n)  # Unpack all three values
 
         # Apply a threshold to convert logits to probabilities
         y_prob = torch.sigmoid(y_pred)

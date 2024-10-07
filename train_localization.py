@@ -17,19 +17,26 @@ warnings.filterwarnings(
 def train_model(model_attrs: ModelAttributes, datahandler:DataloaderHandler, outer_i: int):
     train_dataloader, val_dataloader = datahandler.get_train_val_dataloaders(outer_i) # Gets training and validation data loaders for the current model iteration.
 
-     # Check and print the first batch from the train and validation dataloaders
+    # Print structure of a few batches from train dataloader
+    print("\nInspecting train dataloader structure:")
     for batch_idx, batch in enumerate(train_dataloader):
-        print(f"Training Batch {batch_idx}:")
+        print(f"Batch {batch_idx} (Train):")
         for i, item in enumerate(batch):
-            print(f"  Item {i} (Training): {item}")
-        break  # Print only the first batch for validation
+            if i == 0:  # Embeddings
+                print(f"  Item {i} (Embeddings): {item.shape}")
+                print(f"  Embedding sample: {item[0]}")  # Print the first sequence's embedding for brevity
+            elif i == 1:  # Sequence lengths
+                print(f"  Item {i} (Sequence Lengths): {item}")
+            elif i == 2:  # Boolean mask
+                print(f"  Item {i} (Boolean Mask): {item}")
+            elif i == 3:  # Target labels
+                print(f"  Item {i} (Target Labels): {item}")
+            elif i == 4:  # Token annotations
+                print(f"  Item {i} (Token Annotations): {item}")
+            elif i == 5:  # Sequence IDs (ACC)
+                print(f"  Item {i} (ACC): {item}")
+        break  # Stop after printing the first batch
 
-    for batch_idx, batch in enumerate(val_dataloader):
-        print(f"Validation Batch {batch_idx}:")
-        for i, item in enumerate(batch):
-            print(f"  Item {i} (Validation): {item}")
-        break  # Print only the first batch for validation
-    
     # Saves the model’s weights whenever the bce_loss (binary cross-entropy loss) improves.
     # Saves the best model weights based on validation performance.
     # Saves every epoch to keep track of progress.
@@ -74,6 +81,14 @@ def test_model(model_attrs: ModelAttributes):
     # Get the HPA test dataloader
     test_dataloader = HPATestDataset.get_hpa_test_dataloader(alphabet, embed_len)
 
+    # Print structure of a few batches from validation dataloader
+    print("\nInspecting test dataloader structure:")
+    for batch_idx, batch in enumerate(test_dataloader):
+        print(f"Batch {batch_idx} (testing):")
+        for i, item in enumerate(batch):
+            print(f"  Item {i}: {item}")
+        break  # Stop after printing the first batch
+    
     # Load the best checkpoint for the model
     checkpoint_path = os.path.join(model_attrs.save_path, f"{4}_1Layer.ckpt")
     clf = model_attrs.class_type.load_from_checkpoint(checkpoint_path)
@@ -88,7 +103,6 @@ def test_model(model_attrs: ModelAttributes):
     df_results = pd.concat(clf.predictions, ignore_index=True)
 
     return df_results
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -159,9 +173,7 @@ if __name__ == "__main__":
     # Print out the first few rows of the results for verification
     print(df_test_results.head())
 
-    # Save the results DataFrame to a CSV file
-    csv_file_path = os.path.join(model_attrs.save_path, 'test_results.csv')
-    df_test_results.to_csv(csv_file_path, index=False)
-    
-    print(f"Test results saved to: {csv_file_path}")
+    output_folder = 'outputs/training_results/hpa_test_results.csv'
+    df_test_results.to_csv(output_folder, index=False)
+
     print("Finished testing subcellular localization models")

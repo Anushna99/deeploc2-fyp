@@ -182,6 +182,8 @@ def get_swissprot_df(clip_len):
     data_df = data_df.merge(annot_df[["ACC", "ANNOT", "Types", "TargetAnnot"]], on="ACC", how="left")
     data_df['TargetAnnot'] = data_df['TargetAnnot'].fillna(0)
 
+    print(data_df.head(10))
+
     # embedding_fasta = read_fasta(f"{embedding_path}/remapped_sequences_file.fasta")
     # embedding_df = pd.DataFrame(embedding_fasta.items(), columns=["details", "RawSeq"])
     # embedding_df["Hash"] = embedding_df.details.apply(lambda x: x.split()[0])
@@ -376,8 +378,13 @@ class DataloaderHandler:
         split_train_df =  train_df.iloc[split_train_idx].reset_index(drop=True)
         split_val_df = train_df.iloc[split_val_idx].reset_index(drop=True)
 
+        print("Trainng data frame", split_train_df.head(10))
+        print("validation data frme", split_val_df.head(10))
+
         # can help you understand how the data is distributed and whether there are any imbalances.
+        print("Train DataFrame Categories Mean:")
         print(split_train_df[CATEGORIES].mean())
+        print("\nValidation DataFrame Categories Mean:")
         print(split_val_df[CATEGORIES].mean())
 
         embedding_file = h5py.File(self.embedding_file, "r")
@@ -495,7 +502,7 @@ class HPATestDataset(torch.utils.data.Dataset):
         return len(self.keys)
 
 
-    def get_hpa_test_dataloader(alphabet, embed_len, batch_size=32, num_workers=7):
+    def get_hpa_test_dataloader(alphabet, embed_len, batch_size=128, num_workers=7):
         """
         This function creates a DataLoader for the HPA test dataset.
         Args:
@@ -506,11 +513,6 @@ class HPATestDataset(torch.utils.data.Dataset):
         Returns:
             test_dataloader: DataLoader to iterate through HPA test data.
         """
-
-        embedding_file_temp = h5py.File('data_files/embeddings/esm1b_swissprot.h5', "r")
-        
-        keys_temp = list(embedding_file_temp.keys())
-        print(f"Number of sequences in the embedding file: {len(keys_temp)}")
 
         # Load the HPA embedding file
         embedding_file = h5py.File('data_files/embeddings/esm1b_hpa.h5', "r")

@@ -117,10 +117,10 @@ def generate_sl_outputs(
 
     current_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     # Save the thresholds as a CSV file
-    threshold_csv_path = os.path.join(model_attrs.outputs_save_path, f"thresholds_sl_{current_timestamp}_{thresh_type}.csv")
-    threshold_df.to_csv(threshold_csv_path)
+    # threshold_csv_path = os.path.join(model_attrs.outputs_save_path, f"thresholds_sl_{current_timestamp}_{thresh_type}.csv")
+    # threshold_df.to_csv(threshold_csv_path)
 
-    print(f"Thresholds saved to {threshold_csv_path}")
+    # print(f"Thresholds saved to {threshold_csv_path}")
 
     with open(os.path.join(model_attrs.outputs_save_path, f"thresholds_sl_{thresh_type}.pkl"), "wb") as f:
         pickle.dump(threshold_dict, f)
