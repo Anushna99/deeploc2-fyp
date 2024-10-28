@@ -303,6 +303,62 @@ class EmbeddingsLocalizationDataset(torch.utils.data.Dataset):
 
     def __len__(self) -> int:
         return len(self.data_df)
+    
+class EmbeddingsPreProcessDataset(torch.utils.data.Dataset):
+    """
+    Dataset of protein embeddings and the corresponding subcellular localization label.
+    """
+
+    def __init__(self, embedding_file) -> None:
+        super().__init__()
+        self.embeddings_file = embedding_file
+        self.data_df = pd.DataFrame({
+            "ACC": list(self.embeddings_file.keys())
+        })
+    
+    def __getitem__(self, index: int):
+        '''
+        For a given index, it retrieves the corresponding embedding, np_mask, and ACC from the embeddings file.
+        '''
+        acc = self.data_df["ACC"][index]
+        embedding = np.array(self.embeddings_file[acc]).copy()
+        np_mask = np.ones(embedding.shape[0], dtype=bool)  # Create a mask of the same length as the embedding
+
+        return embedding, len(embedding), np_mask, acc
+    
+    def get_batch_indices(self, toks_per_batch, max_batch_size, extra_toks_per_seq=0):
+        '''
+        This method generates indices for batching the data. It sorts sequences by length and groups them 
+        into batches that fit within a specified number of tokens per batch (toks_per_batch) and a maximum batch size (max_batch_size).
+        '''
+        sizes = [(len(self.embeddings_file[acc]), i) for i, acc in enumerate(self.data_df["ACC"])]
+        sizes.sort(reverse=True)
+        batches = []
+        buf = []
+        max_len = 0
+
+        def _flush_current_buf():
+            nonlocal max_len, buf
+            if len(buf) == 0:
+                return
+            batches.append(buf)
+            buf = []
+            max_len = 0
+        
+        for j in range(len(sizes)):
+            sz = sizes[j][0]
+            idx = sizes[j][1]
+            sz += extra_toks_per_seq
+            if (max(sz, max_len) * (len(buf) + 1) > toks_per_batch) or len(buf) >= max_batch_size:
+                _flush_current_buf()
+            max_len = max(max_len, sz)
+            buf.append(idx)
+
+        _flush_current_buf()
+        return batches
+
+    def __len__(self) -> int:
+        return len(self.data_df)
 
 class TrainBatchConverter(object):
     """Callable to convert an unprocessed (labels + strings) batch to a
@@ -334,6 +390,31 @@ class TrainBatchConverter(object):
             np_mask[i, :len(seq_str)] = 1
         np_mask = np_mask == 1
         return embedding_tensor, torch.tensor(lengths), np_mask, targets, target_annots, labels
+    
+class TestBatchConverter:
+    def __init__(self, embed_len):
+        self.embed_len = embed_len
+
+    def __call__(self, batch):
+        """
+        Takes a list of tuples (embedding, length, np_mask, acc) and collates them into a batch.
+        """
+        # Unzip the batch into separate lists
+        embeddings, lengths, np_masks, labels = zip(*batch)
+
+        # Pad the embeddings to the maximum length in the batch
+        max_len = max(lengths)
+        padded_embeddings = torch.zeros((len(embeddings), max_len, self.embed_len), dtype=torch.float32)
+        np_masks_padded = torch.zeros((len(np_masks), max_len), dtype=torch.bool)
+
+        for i in range(len(embeddings)):
+            padded_embeddings[i, :lengths[i]] = torch.tensor(embeddings[i], dtype=torch.float32)
+            np_masks_padded[i, :lengths[i]] = torch.tensor(np_masks[i], dtype=torch.bool)
+
+        # Convert lengths to tensor
+        lengths_tensor = torch.tensor(lengths, dtype=torch.int64)
+
+        return padded_embeddings, lengths_tensor, np_masks_padded, list(labels)
     
 class SignalTypeDataset(torch.utils.data.Dataset):
 
@@ -432,6 +513,18 @@ class DataloaderHandler:
             pin_memory=True)
 
         return test_dataloader, test_df
+    
+    def get_test_dataloader(self, model_attrs):
+        if (model_attrs.dataset == 'swissprot'):
+            embedding_file = h5py.File('data_files/embeddings/esm1b_swissprot.h5', "r")
+        else:
+            embedding_file = h5py.File('data_files/embeddings/esm1b_hpa.h5', "r")
+        test_dataset = EmbeddingsPreProcessDataset(embedding_file)
+        test_batches = test_dataset.get_batch_indices(4096*4, BATCH_SIZE, extra_toks_per_seq=0)
+        test_dataloader = torch.utils.data.DataLoader(test_dataset, collate_fn=TestBatchConverter(self.embed_len), batch_sampler=test_batches, num_workers=self.num_workers,
+            pin_memory=True)
+
+        return test_dataloader
     
     def get_ss_train_val_dataloader(self, save_path, outer_i):
         X, y, _, _ = get_swissprot_ss_Xy(save_path, outer_i, clip_len=self.clip_len)

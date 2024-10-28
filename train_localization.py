@@ -73,37 +73,6 @@ def train_model(model_attrs: ModelAttributes, datahandler:DataloaderHandler, out
     trainer.fit(clf, train_dataloader, val_dataloader)
     return trainer
 
-def test_model(model_attrs: ModelAttributes):
-    # Get the necessary attributes
-    alphabet = model_attrs.alphabet
-    embed_len = model_attrs.embed_len
-
-    # Get the HPA test dataloader
-    test_dataloader = HPATestDataset.get_hpa_test_dataloader(alphabet, embed_len)
-
-    # Print structure of a few batches from validation dataloader
-    print("\nInspecting test dataloader structure:")
-    for batch_idx, batch in enumerate(test_dataloader):
-        print(f"Batch {batch_idx} (testing):")
-        for i, item in enumerate(batch):
-            print(f"  Item {i}: {item}")
-        break  # Stop after printing the first batch
-    
-    # Load the best checkpoint for the model
-    checkpoint_path = os.path.join(model_attrs.save_path, f"{4}_1Layer.ckpt")
-    clf = model_attrs.class_type.load_from_checkpoint(checkpoint_path)
-
-    # Initialize trainer (ensure same precision and settings)
-    trainer = pl.Trainer(precision="16-mixed", accelerator="auto")
-
-    # Run the test phase
-    trainer.test(clf, dataloaders=test_dataloader)
-
-    # Concatenate all DataFrames collected in clf.predictions
-    df_results = pd.concat(clf.predictions, ignore_index=True)
-
-    return df_results
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
@@ -117,9 +86,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     model_attrs = get_train_model_attributes(model_type=args.model) # fetching model attributes according to the user iinput
+    print("All Model Attributes:")
+    print(vars(model_attrs))
     if not os.path.exists(model_attrs.embedding_file):
         print("Embeddings not found, generating......")
-        generate_embeddings(model_attrs, is_training=True)
+        generate_embeddings(model_attrs)
         print("Embeddings created!")
     else:
         print("Using existing embeddings")
@@ -150,30 +121,30 @@ if __name__ == "__main__":
     print("Computing subcellular localization performance on swissprot CV dataset")
     calculate_sl_metrics(model_attrs=model_attrs, datahandler=datahandler)
 
-    if model_attrs.model_type == FAST :
-            model_attrs.embedding_file = EMBEDDINGS[TEST_ESM]["embeds"]
-    else :
-            model_attrs.embedding_file = EMBEDDINGS[TEST_PROTT5]["embeds"]
+    # if model_attrs.model_type == FAST :
+    #         model_attrs.embedding_file = EMBEDDINGS[TEST_ESM]["embeds"]
+    # else :
+    #         model_attrs.embedding_file = EMBEDDINGS[TEST_PROTT5]["embeds"]
 
-    print(f"Embedding file selected: {model_attrs.embedding_file}")
+    # print(f"Embedding file selected: {model_attrs.embedding_file}")
 
-    if not os.path.exists(model_attrs.embedding_file):
-        print("Embeddings not found for testing, generating......")
-        generate_embeddings(model_attrs, is_training=False)
-        print("New embeddings created for testing!")
-    else:
-        print("Using existing embeddings")
+    # if not os.path.exists(model_attrs.embedding_file):
+    #     print("Embeddings not found for testing, generating......")
+    #     generate_embeddings(model_attrs, is_training=False)
+    #     print("New embeddings created for testing!")
+    # else:
+    #     print("Using existing embeddings")
 
-    # Testing phase
-    print("Testing trained models on new datasets")
+    # # Testing phase
+    # print("Testing trained models on new datasets")
     
-    # Collect the results DataFrame from the test phase
-    df_test_results = test_model(model_attrs)
+    # # Collect the results DataFrame from the test phase
+    # df_test_results = test_model(model_attrs)
 
-    # Print out the first few rows of the results for verification
-    print(df_test_results.head())
+    # # Print out the first few rows of the results for verification
+    # print(df_test_results.head())
 
-    output_folder = 'outputs/training_results/hpa_test_results.csv'
-    df_test_results.to_csv(output_folder, index=False)
+    # output_folder = 'outputs/training_results/hpa_test_results.csv'
+    # df_test_results.to_csv(output_folder, index=False)
 
-    print("Finished testing subcellular localization models")
+    # print("Finished testing subcellular localization models")
