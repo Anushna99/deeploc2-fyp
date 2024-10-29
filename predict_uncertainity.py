@@ -62,6 +62,17 @@ if __name__ == "__main__":
         # calculate variance distribution over each classes
         plot_variance_distribution(merged_csv_path, uncertainty_results_path)
 
+        # calculate metrics
+        print("Calculating metrics for the ensemble results...")
+        binary_predictions = get_binary_predictions(merged_csv_path, uncertainty_results_path)
+
+        calculate_metrics(binary_predictions, uncertainty_results_path)
+
+        print("Generating calibaration curve...")
+        plot_combined_calibration_curve(binary_predictions, uncertainty_results_path)
+
+        
+
 
 
 

@@ -120,31 +120,3 @@ if __name__ == "__main__":
 
     print("Computing subcellular localization performance on swissprot CV dataset")
     calculate_sl_metrics(model_attrs=model_attrs, datahandler=datahandler)
-
-    # if model_attrs.model_type == FAST :
-    #         model_attrs.embedding_file = EMBEDDINGS[TEST_ESM]["embeds"]
-    # else :
-    #         model_attrs.embedding_file = EMBEDDINGS[TEST_PROTT5]["embeds"]
-
-    # print(f"Embedding file selected: {model_attrs.embedding_file}")
-
-    # if not os.path.exists(model_attrs.embedding_file):
-    #     print("Embeddings not found for testing, generating......")
-    #     generate_embeddings(model_attrs, is_training=False)
-    #     print("New embeddings created for testing!")
-    # else:
-    #     print("Using existing embeddings")
-
-    # # Testing phase
-    # print("Testing trained models on new datasets")
-    
-    # # Collect the results DataFrame from the test phase
-    # df_test_results = test_model(model_attrs)
-
-    # # Print out the first few rows of the results for verification
-    # print(df_test_results.head())
-
-    # output_folder = 'outputs/training_results/hpa_test_results.csv'
-    # df_test_results.to_csv(output_folder, index=False)
-
-    # print("Finished testing subcellular localization models")

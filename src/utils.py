@@ -6,6 +6,8 @@ import pandas as pd
 from datetime import datetime
 import os
 import matplotlib.pyplot as plt
+from sklearn.metrics import accuracy_score, jaccard_score, f1_score, matthews_corrcoef
+from sklearn.calibration import calibration_curve
 
 class ModelAttributes:
     '''
@@ -262,3 +264,175 @@ def plot_variance_distribution(merged_csv_file, output_folder):
     stats_csv_path = os.path.join(output_folder, "variance_statistics.csv")
     variance_stats.to_csv(stats_csv_path, index=False)
     print(f"Variance statistics saved to {stats_csv_path}")
+
+esm1b_label_thresholds = np.array([0.45380859, 0.46953125, 0.52753906, 0.64638672, 
+                            0.52368164, 0.63730469, 0.65859375, 0.62783203, 
+                            0.56484375, 0.66777344, 0.71679688])
+prott5_label_threshold = np.array([0.45717773, 0.47612305, 0.50136719, 0.61728516, 0.56464844, 
+                                   0.62197266, 0.63945312, 0.60898438, 0.58476562, 0.64941406, 0.73642578])
+class_labels = CATEGORIES
+
+def extract_true_labels(true_labels_csv):
+    """
+    Extract true labels from the provided CSV file and return as a dictionary.
+    Each ACC will map to its corresponding true locations as a list of strings.
+    """
+    # Load the true labels CSV
+    true_df = pd.read_csv(true_labels_csv)
+    
+    # Define the class columns in the true labels CSV file
+    class_columns = CATEGORIES
+
+    # Ensure all required columns exist, filling missing ones with `0`s
+    for col in class_columns:
+        if col not in true_df.columns:
+            true_df[col] = 0  # Fill missing class columns with 0s
+    
+    # Create a dictionary to store true labels
+    true_labels_dict = {}
+    
+    # Iterate over each row and extract true labels based on binary values
+    for _, row in true_df.iterrows():
+        acc = row['sid']
+        true_locations = [class_columns[i] for i, val in enumerate(row[class_columns]) if val == 1]
+        true_labels_dict[acc] = ', '.join(true_locations) if true_locations else "None"
+    
+    return true_labels_dict
+
+def get_binary_predictions(merged_csv_path, output_folder, label_thresholds=esm1b_label_thresholds, true_labels_csv='/home/pasindumadusha_20/deeploc2-fyp/hpa_testset.csv'):
+    # Load merged predictions file
+    merged_df = pd.read_csv(merged_csv_path)
+    
+    # Initialize a list to store the final results with the desired structure
+    results = []
+
+    # Loop over each row to calculate mean values and predicted labels
+    for idx, row in merged_df.iterrows():
+        acc = row["ACC"]
+        row_data = {"ACC": acc}  # Initialize row data with ACC
+        
+        # Initialize a list to store the predicted classes
+        predicted_labels = []
+
+        # Loop over each class to apply threshold and extract mean values
+        for i, class_name in enumerate(class_labels):
+            # Calculate mean prediction value for the current class
+            mean_value = np.mean([float(val) for val in row[class_name].split(" mean: ")[0][1:-1].split(",")])
+            row_data[class_name] = mean_value  # Add mean value to the row
+            
+            # Apply threshold to decide if this class is predicted
+            if mean_value >= label_thresholds[i]:
+                predicted_labels.append(class_name)
+        
+        # Join predicted class names with commas and store them in `predicted_label`
+        row_data["predicted_label"] = ", ".join(predicted_labels) if predicted_labels else "None"
+        
+        # Append the row data to the results list
+        results.append(row_data)
+
+    # Convert the results list to a DataFrame
+    binary_df = pd.DataFrame(results)
+
+    print(binary_df.head(10))  # Display the first 10 rows for verification
+    
+    # Extract true labels from the CSV
+    true_labels_dict = extract_true_labels(true_labels_csv)
+
+    # Map the true labels to the binary_df based on the ACC column
+    binary_df['true_label'] = binary_df['ACC'].map(true_labels_dict)
+
+    print(binary_df.head(10))
+
+    output_path = os.path.join(output_folder, "predictions_with_true_labels.csv")
+    binary_df.to_csv(output_path, index=False)
+    print(f"Binary predictions with mean values and true labels saved to: {output_path}")
+
+    return binary_df
+
+def calculate_metrics(data_df, output_folder):
+    # Initialize a dictionary to store metrics
+    metrics = {
+        "Metric": ["Subset Accuracy", "Jaccard", "MicroF1", "MacroF1"] + [f"MCC_{label}" for label in class_labels],
+        "Value": []
+    }
+
+    # Helper function to convert labels to binary arrays for each class
+    def multilabel_to_binary_array(labels, all_labels):
+        return [1 if label in labels else 0 for label in all_labels]
+
+    # Convert 'true_label' and 'predicted_label' columns to binary arrays
+    data_df['true_binary'] = data_df['true_label'].apply(lambda x: multilabel_to_binary_array(x.split(', '), class_labels))
+    data_df['predicted_binary'] = data_df['predicted_label'].apply(lambda x: multilabel_to_binary_array(x.split(', '), class_labels))
+    
+    true_binary_matrix = np.array(data_df['true_binary'].to_list())
+    predicted_binary_matrix = np.array(data_df['predicted_binary'].to_list())
+
+    # Subset accuracy (exact match ratio)
+    subset_accuracy = np.mean(np.all(true_binary_matrix == predicted_binary_matrix, axis=1))
+    metrics["Value"].append(subset_accuracy)
+
+    # Jaccard Index (samples average for multilabel)
+    jaccard = jaccard_score(true_binary_matrix, predicted_binary_matrix, average='samples')
+    metrics["Value"].append(jaccard)
+
+    # Micro and Macro F1-Scores for multilabel
+    micro_f1 = f1_score(true_binary_matrix, predicted_binary_matrix, average='micro')
+    macro_f1 = f1_score(true_binary_matrix, predicted_binary_matrix, average='macro')
+    metrics["Value"].extend([micro_f1, macro_f1])
+
+    # Calculate MCC for each class
+    for i, class_name in enumerate(class_labels):
+        mcc = matthews_corrcoef(true_binary_matrix[:, i], predicted_binary_matrix[:, i])
+        metrics["Value"].append(mcc)
+
+    # Convert to DataFrame
+    metrics_df = pd.DataFrame(metrics)
+
+    # Save the results to a CSV file
+    output_path = os.path.join(output_folder, "metrics_table.csv")
+    metrics_df.to_csv(output_path, index=False)
+
+    print(f"Metrics table saved to {output_path}")
+        
+def plot_combined_calibration_curve(data_df, output_folder, n_bins=10):
+    """
+    Plot a combined calibration curve for all classes in one plot.
+    
+    Parameters:
+        data_df (pd.DataFrame): DataFrame containing mean predicted probabilities and true labels for each class.
+        output_folder (str): Path to save the calibration plot.
+        n_bins (int): Number of bins for calibration.
+    """
+    plt.figure(figsize=(10, 8))
+
+    # Loop through each class and calculate calibration data
+    for class_name in class_labels:
+        # Extract mean predicted probabilities and true labels for the class
+        prob_col = class_name
+        true_col = "true_label"
+
+        # Convert the true label to binary format for each class
+        data_df[f'{class_name}_true_binary'] = data_df[true_col].apply(lambda x: 1 if class_name in x else 0)
+
+        # Calculate calibration curve
+        prob_true, prob_pred = calibration_curve(data_df[f'{class_name}_true_binary'], data_df[prob_col], n_bins=n_bins, strategy='uniform')
+
+        # Plot calibration curve
+        plt.plot(prob_pred, prob_true, marker='o', label=class_name)
+
+    # Plot the diagonal for perfect calibration
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly Calibrated")
+
+    # Set plot labels and title
+    plt.xlabel("Mean Predicted Probability")
+    plt.ylabel("True Frequency")
+    plt.title("Combined Calibration Plot for All Classes")
+    plt.legend(loc="best")
+    
+    # Save the plot
+    output_path = os.path.join(output_folder, "combined_calibration_plot.png")
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+
+    print(f"Combined calibration plot saved to {output_path}")
