@@ -7,7 +7,6 @@ from .attr_prior import *
 from src.constants import *
 import pandas as pd
 
-
 pos_weights_bce = torch.tensor([1,1,1,3,2.3,4,9.5,4.5,6.6,7.7,32])
 def focal_loss(input, target, gamma=1):
     bceloss = F.binary_cross_entropy_with_logits(input, target, pos_weight=pos_weights_bce.to(input.device), reduction="none")

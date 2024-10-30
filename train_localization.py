@@ -88,6 +88,8 @@ if __name__ == "__main__":
     model_attrs = get_train_model_attributes(model_type=args.model) # fetching model attributes according to the user iinput
     print("All Model Attributes:")
     print(vars(model_attrs))
+
+    print('\n', BATCH_SIZE, REG_LOSS_MULT, SUP_LOSS_MULT)
     if not os.path.exists(model_attrs.embedding_file):
         print("Embeddings not found, generating......")
         generate_embeddings(model_attrs)

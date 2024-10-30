@@ -8,6 +8,7 @@ import os
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, jaccard_score, f1_score, matthews_corrcoef
 from sklearn.calibration import calibration_curve
+import itertools
 
 class ModelAttributes:
     '''
@@ -185,6 +186,18 @@ def save_fasta_to_csv(fasta_dict, outputs_save_path, type):
     df.to_csv(output_file, index=False)
     print(f"FASTA sequences saved to {output_file}")
 
+def format_suffix(batch_size, reg_loss_mult, sup_loss_mult):
+    # Format batch size directly
+    batch_suffix = f"B{batch_size}"
+    
+    # Format reg_loss_mult and sup_loss_mult according to specified rules
+    reg_suffix = f"R{str(reg_loss_mult).replace('0.', '')}"  # Removes '0.' for compact representation
+    sup_suffix = f"S{str(sup_loss_mult).replace('0.', '')}"  # Same logic for sup_loss_mult
+
+    return f"{batch_suffix}_{reg_suffix}_{sup_suffix}"
+
+suffix = format_suffix(BATCH_SIZE, REG_LOSS_MULT, SUP_LOSS_MULT)
+
 def merge_prediction_files(folder_path, required_files, output_folder):
     """Merge prediction files from a folder, calculate mean and variance, and save the merged CSV."""
     merged_data = {}
@@ -213,17 +226,21 @@ def merge_prediction_files(folder_path, required_files, output_folder):
 
     # Save merged DataFrame with calculated statistics to output folder
     final_df = pd.DataFrame(results)
-    output_file = os.path.join(output_folder, "merged_predictions_of_ensembles_with_stats.csv")
-    final_df.to_csv(output_file, index=False)
+    output_file = os.path.join(output_folder, f"merged_predictions_of_ensembles_with_stats_{suffix}.csv")
+    # Write the hyperparameter configuration as the first line of the CSV
+    with open(output_file, 'w') as f:
+        f.write(f"# Hyperparameter Configuration: BATCH_SIZE={BATCH_SIZE}, REG_LOSS_MULT={REG_LOSS_MULT}, SUP_LOSS_MULT={SUP_LOSS_MULT}\n")
+        final_df.to_csv(f, index=False)
+    
     print(f"Merged predictions of ensembles with statistics saved to {output_file}")
 
-def plot_variance_distribution(merged_csv_file, output_folder):
+    return final_df
+
+def plot_variance_distribution(df, output_folder):
     """Plot the variance distribution for each class based on the merged CSV file and save summary statistics."""
-    # Load the merged CSV file
-    df = pd.read_csv(merged_csv_file)
     
     # Ensure the output folder and graphs subfolder exist
-    graphs_folder = os.path.join(output_folder, "graphs")
+    graphs_folder = os.path.join(output_folder, f"graphs_{suffix}")
     os.makedirs(graphs_folder, exist_ok=True)
     
     # DataFrame to store mean and std deviation of variance for each class
@@ -249,20 +266,31 @@ def plot_variance_distribution(merged_csv_file, output_folder):
         # Plot the variance distribution
         plt.figure(figsize=(8, 6))
         plt.hist(variance_values, bins=30, color='skyblue', edgecolor='black', alpha=0.7)
-        plt.title(f'Variance Distribution for {column}')
+        plt.suptitle(
+            f'Variance Distribution for {column}',
+            fontsize=14, y=1.05
+        )
+        plt.title(
+            f"Hyperparameter Configuration:\n BATCH_SIZE={BATCH_SIZE}, REG_LOSS_MULT={REG_LOSS_MULT}, SUP_LOSS_MULT={SUP_LOSS_MULT}",
+            fontsize=10
+        )
         plt.xlabel('Variance')
         plt.ylabel('Frequency')
 
         # Replace '/' with '_' in column name for file name safety
         safe_column_name = column.replace("/", "_")
-        output_path = os.path.join(graphs_folder, f'{safe_column_name}_variance_distribution.png')
+        output_path = os.path.join(graphs_folder, f'{safe_column_name}_variance_distribution_{suffix}.png')
+        plt.tight_layout(rect=[0, 0, 1, 0.95]) 
         plt.savefig(output_path)
         plt.close()
         print(f'Saved variance distribution plot for {column} at {output_path}')
 
     # Save the summary statistics as a CSV file
-    stats_csv_path = os.path.join(output_folder, "variance_statistics.csv")
-    variance_stats.to_csv(stats_csv_path, index=False)
+    stats_csv_path = os.path.join(output_folder, f"variance_statistics_{suffix}.csv")
+    with open(stats_csv_path, 'w') as f:
+        f.write(f"# Hyperparameter Configuration: BATCH_SIZE={BATCH_SIZE}, REG_LOSS_MULT={REG_LOSS_MULT}, SUP_LOSS_MULT={SUP_LOSS_MULT}\n")
+        variance_stats.to_csv(f, index=False)
+
     print(f"Variance statistics saved to {stats_csv_path}")
 
 esm1b_label_thresholds = np.array([0.45380859, 0.46953125, 0.52753906, 0.64638672, 
@@ -299,10 +327,7 @@ def extract_true_labels(true_labels_csv):
     
     return true_labels_dict
 
-def get_binary_predictions(merged_csv_path, output_folder, label_thresholds=esm1b_label_thresholds, true_labels_csv='/home/pasindumadusha_20/deeploc2-fyp/hpa_testset.csv'):
-    # Load merged predictions file
-    merged_df = pd.read_csv(merged_csv_path)
-    
+def get_binary_predictions(merged_df, output_folder, label_thresholds=esm1b_label_thresholds, true_labels_csv='/home/pasindumadusha_20/deeploc2-fyp/hpa_testset.csv'):
     # Initialize a list to store the final results with the desired structure
     results = []
 
@@ -343,10 +368,13 @@ def get_binary_predictions(merged_csv_path, output_folder, label_thresholds=esm1
 
     print(binary_df.head(10))
 
-    output_path = os.path.join(output_folder, "predictions_with_true_labels.csv")
-    binary_df.to_csv(output_path, index=False)
+    output_path = os.path.join(output_folder, f"predictions_with_true_labels_{suffix}.csv")
+     # Write the hyperparameter configuration as the first line of the CSV
+    with open(output_path, 'w') as f:
+        f.write(f"# Hyperparameter Configuration: BATCH_SIZE={BATCH_SIZE}, REG_LOSS_MULT={REG_LOSS_MULT}, SUP_LOSS_MULT={SUP_LOSS_MULT}\n")
+        binary_df.to_csv(f, index=False)
+    
     print(f"Binary predictions with mean values and true labels saved to: {output_path}")
-
     return binary_df
 
 def calculate_metrics(data_df, output_folder):
@@ -389,10 +417,14 @@ def calculate_metrics(data_df, output_folder):
     metrics_df = pd.DataFrame(metrics)
 
     # Save the results to a CSV file
-    output_path = os.path.join(output_folder, "metrics_table.csv")
-    metrics_df.to_csv(output_path, index=False)
+    output_path = os.path.join(output_folder, f"metrics_table_{suffix}.csv")
+     # Write the hyperparameter configuration as the first line of the CSV
+    with open(output_path, 'w') as f:
+        f.write(f"# Hyperparameter Configuration: BATCH_SIZE={BATCH_SIZE}, REG_LOSS_MULT={REG_LOSS_MULT}, SUP_LOSS_MULT={SUP_LOSS_MULT}\n")
+        metrics_df.to_csv(f, index=False)
+    
+    print(f"Binary predictions with mean values and true labels saved to: {output_path}")
 
-    print(f"Metrics table saved to {output_path}")
         
 def plot_combined_calibration_curve(data_df, output_folder, n_bins=10):
     """
@@ -426,13 +458,31 @@ def plot_combined_calibration_curve(data_df, output_folder, n_bins=10):
     # Set plot labels and title
     plt.xlabel("Mean Predicted Probability")
     plt.ylabel("True Frequency")
-    plt.title("Combined Calibration Plot for All Classes")
+    plt.suptitle(
+        "Combined Calibration Plot for All Classes",
+        fontsize=14, y=1.05
+    )
+    plt.title(
+        f"Hyperparameter Configuration:\n BATCH_SIZE={BATCH_SIZE}, REG_LOSS_MULT={REG_LOSS_MULT}, SUP_LOSS_MULT={SUP_LOSS_MULT}",
+        fontsize=10
+    )
     plt.legend(loc="best")
     
     # Save the plot
-    output_path = os.path.join(output_folder, "combined_calibration_plot.png")
-    plt.tight_layout()
+    output_path = os.path.join(output_folder, f"combined_calibration_plot_{suffix}.png")
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.savefig(output_path)
     plt.close()
 
     print(f"Combined calibration plot saved to {output_path}")
+
+def iterate_hyperparams(batch_sizes, sup_loss_mults, reg_loss_mults):
+    """
+    Generator function to iterate over combinations of hyperparameters and assign
+    them to BATCH_SIZE, SUP_LOSS_MULT, and REG_LOSS_MULT.
+    
+    Yields:
+        BATCH_SIZE, SUP_LOSS_MULT, REG_LOSS_MULT: A combination of the parameters
+    """
+    for batch_size, sup_loss_mult, reg_loss_mult in itertools.product(batch_sizes, sup_loss_mults, reg_loss_mults):
+        yield batch_size, sup_loss_mult, reg_loss_mult

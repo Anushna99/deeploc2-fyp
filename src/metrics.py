@@ -142,6 +142,7 @@ def calculate_sl_metrics_fold(test_df, thresholds):
                           [f'pred_loc_{col}' for col in preds_df.columns] + \
                           [f'true_loc_{col}' for col in preds_df.columns]
 
+    print(combined_df.head())
     ypred_membrane = outputs[:, 0]
     ypred_subloc = outputs[:,1:]
     y_membrane = actuals[:, 0]

@@ -26,7 +26,8 @@ def check_required_files(folder_path, required_files):
 
 def prepare_uncertainty_results_path(dataset_name):
     """Prepare the dataset-specific directory inside 'uncertainity_results'."""
-    uncertainty_results_path = os.path.join("outputs", "uncertainity_results", dataset_name)
+    suffix = format_suffix(BATCH_SIZE, REG_LOSS_MULT, SUP_LOSS_MULT)
+    uncertainty_results_path = os.path.join("outputs", f"uncertainity_results/hyperparameter_ensemble", dataset_name, suffix)
     os.makedirs(uncertainty_results_path, exist_ok=True)
     print(f"Results will be saved in: {uncertainty_results_path}")
     return uncertainty_results_path
@@ -56,15 +57,14 @@ if __name__ == "__main__":
         uncertainty_results_path = prepare_uncertainty_results_path(args.dataset)
 
         # Merge prediction files and save the output to the relevant folder
-        merge_prediction_files(selected_folder, required_files, uncertainty_results_path)
+        merge_df = merge_prediction_files(selected_folder, required_files, uncertainty_results_path)
 
-        merged_csv_path = os.path.join(uncertainty_results_path, "merged_predictions_of_ensembles_with_stats.csv")
         # calculate variance distribution over each classes
-        plot_variance_distribution(merged_csv_path, uncertainty_results_path)
+        plot_variance_distribution(merge_df, uncertainty_results_path)
 
         # calculate metrics
         print("Calculating metrics for the ensemble results...")
-        binary_predictions = get_binary_predictions(merged_csv_path, uncertainty_results_path)
+        binary_predictions = get_binary_predictions(merge_df, uncertainty_results_path)
 
         calculate_metrics(binary_predictions, uncertainty_results_path)
 
