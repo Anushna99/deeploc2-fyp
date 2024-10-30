@@ -20,3 +20,11 @@ data_files/embeddings
 outputs/esm1b
 outputs/prott5
 
+
+**/__pycache__/
+*.pyc
+
+src/__pycache__/
+
+
+lightning_logs/
