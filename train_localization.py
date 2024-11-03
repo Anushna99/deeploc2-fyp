@@ -11,7 +11,7 @@ import os
 import warnings
 
 warnings.filterwarnings(
-    "ignore", ".*Trying to infer the `batch_size` from an ambiguous collection.*"
+    "ignore", ".*Trying to infer the batch_size from an ambiguous collection.*"
 )
 
 def train_model(model_attrs: ModelAttributes, datahandler:DataloaderHandler, outer_i: int):
@@ -173,7 +173,7 @@ if __name__ == "__main__":
     # Print out the first few rows of the results for verification
     print(df_test_results.head())
 
-    output_folder = 'outputs/training_results/hpa_test_results.csv'
+    output_folder = 'outputs/training_results/hpa_test_results_dropout.csv'
     df_test_results.to_csv(output_folder, index=False)
 
     print("Finished testing subcellular localization models")
