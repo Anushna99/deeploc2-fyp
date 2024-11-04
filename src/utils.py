@@ -217,10 +217,10 @@ def merge_prediction_files(folder_path, required_files, output_folder):
     final_df.to_csv(output_file, index=False)
     print(f"Merged predictions of ensembles with statistics saved to {output_file}")
 
-def plot_variance_distribution(merged_csv_file, output_folder):
+    return final_df
+
+def plot_variance_distribution(df, output_folder):
     """Plot the variance distribution for each class based on the merged CSV file and save summary statistics."""
-    # Load the merged CSV file
-    df = pd.read_csv(merged_csv_file)
     
     # Ensure the output folder and graphs subfolder exist
     graphs_folder = os.path.join(output_folder, "graphs")
@@ -299,9 +299,7 @@ def extract_true_labels(true_labels_csv):
     
     return true_labels_dict
 
-def get_binary_predictions(merged_csv_path, output_folder, label_thresholds=esm1b_label_thresholds, true_labels_csv='/home/pasindumadusha_20/deeploc2-fyp/hpa_testset.csv'):
-    # Load merged predictions file
-    merged_df = pd.read_csv(merged_csv_path)
+def get_binary_predictions(merged_df, output_folder, label_thresholds=esm1b_label_thresholds, true_labels_csv='/home/pasindumadusha_20/deeploc2-fyp/hpa_testset.csv'):
     
     # Initialize a list to store the final results with the desired structure
     results = []
@@ -350,9 +348,12 @@ def get_binary_predictions(merged_csv_path, output_folder, label_thresholds=esm1
     return binary_df
 
 def calculate_metrics(data_df, output_folder):
+    # Define class labels excluding the absent ones
+    filtered_class_labels = [label for label in class_labels if label not in ["Membrane", "Extracellular", "Plastid"]]
+
     # Initialize a dictionary to store metrics
     metrics = {
-        "Metric": ["Subset Accuracy", "Jaccard", "MicroF1", "MacroF1"] + [f"MCC_{label}" for label in class_labels],
+        "Metric": ["Subset Accuracy", "Jaccard", "MicroF1", "MacroF1"] + [f"MCC_{label}" for label in filtered_class_labels],
         "Value": []
     }
 
@@ -361,8 +362,8 @@ def calculate_metrics(data_df, output_folder):
         return [1 if label in labels else 0 for label in all_labels]
 
     # Convert 'true_label' and 'predicted_label' columns to binary arrays
-    data_df['true_binary'] = data_df['true_label'].apply(lambda x: multilabel_to_binary_array(x.split(', '), class_labels))
-    data_df['predicted_binary'] = data_df['predicted_label'].apply(lambda x: multilabel_to_binary_array(x.split(', '), class_labels))
+    data_df['true_binary'] = data_df['true_label'].apply(lambda x: multilabel_to_binary_array(x.split(', '), filtered_class_labels))
+    data_df['predicted_binary'] = data_df['predicted_label'].apply(lambda x: multilabel_to_binary_array(x.split(', '), filtered_class_labels))
     
     true_binary_matrix = np.array(data_df['true_binary'].to_list())
     predicted_binary_matrix = np.array(data_df['predicted_binary'].to_list())
@@ -380,8 +381,8 @@ def calculate_metrics(data_df, output_folder):
     macro_f1 = f1_score(true_binary_matrix, predicted_binary_matrix, average='macro')
     metrics["Value"].extend([micro_f1, macro_f1])
 
-    # Calculate MCC for each class
-    for i, class_name in enumerate(class_labels):
+    # Calculate MCC for each present class
+    for i, class_name in enumerate(filtered_class_labels):
         mcc = matthews_corrcoef(true_binary_matrix[:, i], predicted_binary_matrix[:, i])
         metrics["Value"].append(mcc)
 
@@ -392,7 +393,7 @@ def calculate_metrics(data_df, output_folder):
     output_path = os.path.join(output_folder, "metrics_table.csv")
     metrics_df.to_csv(output_path, index=False)
 
-    print(f"Metrics table saved to {output_path}")
+    print(f"Metrics table saved to: {output_path}")
         
 def plot_combined_calibration_curve(data_df, output_folder, n_bins=10):
     """

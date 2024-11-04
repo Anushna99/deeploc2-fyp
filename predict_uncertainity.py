@@ -56,15 +56,14 @@ if __name__ == "__main__":
         uncertainty_results_path = prepare_uncertainty_results_path(args.dataset)
 
         # Merge prediction files and save the output to the relevant folder
-        merge_prediction_files(selected_folder, required_files, uncertainty_results_path)
+        merge_df = merge_prediction_files(selected_folder, required_files, uncertainty_results_path)
 
-        merged_csv_path = os.path.join(uncertainty_results_path, "merged_predictions_of_ensembles_with_stats.csv")
         # calculate variance distribution over each classes
-        plot_variance_distribution(merged_csv_path, uncertainty_results_path)
+        plot_variance_distribution(merge_df, uncertainty_results_path)
 
         # calculate metrics
         print("Calculating metrics for the ensemble results...")
-        binary_predictions = get_binary_predictions(merged_csv_path, uncertainty_results_path)
+        binary_predictions = get_binary_predictions(merge_df, uncertainty_results_path)
 
         calculate_metrics(binary_predictions, uncertainty_results_path)
 
