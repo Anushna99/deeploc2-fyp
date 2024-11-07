@@ -300,7 +300,6 @@ def extract_true_labels(true_labels_csv):
     return true_labels_dict
 
 def get_binary_predictions(merged_df, output_folder, label_thresholds=esm1b_label_thresholds, true_labels_csv='/home/pasindumadusha_20/deeploc2-fyp/hpa_testset.csv'):
-    
     # Initialize a list to store the final results with the desired structure
     results = []
 
@@ -347,9 +346,63 @@ def get_binary_predictions(merged_df, output_folder, label_thresholds=esm1b_labe
 
     return binary_df
 
+# def get_binary_predictions(merged_df_csv, output_folder, label_thresholds=esm1b_label_thresholds, true_labels_csv='/home/pasindumadusha_20/deeploc2-fyp/hpa_testset.csv'):
+#     """
+#     Process the predictions CSV, apply thresholds for each class, and save results with predicted and true labels.
+#     """
+#     # Load the merged predictions file
+#     merged_df = pd.read_csv(merged_df_csv)
+    
+#     # Initialize a list to store the final results with the desired structure
+#     results = []
+
+#     # Loop over each row to apply thresholds and determine predicted labels
+#     for idx, row in merged_df.iterrows():
+#         acc = row["ACC"]
+#         row_data = {"ACC": acc}  # Initialize row data with ACC 
+        
+#         # Initialize a list to store the predicted classes
+#         predicted_labels = []
+
+#         # Loop over each class to apply threshold and get prediction values directly
+#         for i, class_name in enumerate(class_labels):
+#             # Get the prediction value for the current class
+#             prediction_value = row[class_name]
+#             row_data[class_name] = prediction_value  # Add prediction value to the row
+            
+#             # Apply threshold to decide if this class is predicted
+#             if prediction_value >= label_thresholds[i]:
+#                 predicted_labels.append(class_name)
+        
+#         # Join predicted class names with commas and store them in `predicted_label`
+#         row_data["predicted_label"] = ", ".join(predicted_labels) if predicted_labels else "None"
+        
+#         # Append the row data to the results list
+#         results.append(row_data)
+
+#     # Convert the results list to a DataFrame
+#     binary_df = pd.DataFrame(results)
+
+#     print(binary_df.head(10))  # Display the first 10 rows for verification
+    
+#     # Extract true labels from the CSV
+#     true_labels_dict = extract_true_labels(true_labels_csv)
+
+#     # Map the true labels to the binary_df based on the ACC column
+#     binary_df['true_label'] = binary_df['ACC'].map(true_labels_dict)
+
+#     print(binary_df.head(10))
+
+#     # Save the output with predictions and true labels
+#     output_path = os.path.join(output_folder, "predictions_with_true_labels_model_5.csv")
+#     binary_df.to_csv(output_path, index=False)
+#     print(f"Binary predictions with true labels saved to: {output_path}")
+
+#     return binary_df
+
 def calculate_metrics(data_df, output_folder):
     # Define class labels excluding the absent ones
-    filtered_class_labels = [label for label in class_labels if label not in ["Membrane", "Extracellular", "Plastid"]]
+    filtered_class_labels = [label for label in class_labels if label not in ["Membrane", "Extracellular", "Plastid", "Lysosome/Vacuole", "Peroxisome"]]
 
     # Initialize a dictionary to store metrics
     metrics = {
