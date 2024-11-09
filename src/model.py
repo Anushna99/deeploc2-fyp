@@ -22,6 +22,7 @@ class AttentionHead(nn.Module):
           super(AttentionHead, self).__init__()
           self.n_heads = n_heads
           self.hidden_dim = hidden_dim
+          self.dropout = nn.Dropout(0.5)
           self.preattn_ln = nn.LayerNorm(hidden_dim//n_heads)
           self.Q = nn.Linear(hidden_dim//n_heads, n_heads, bias=False)
           torch.nn.init.normal_(self.Q.weight, mean=0.0, std=1/(hidden_dim//n_heads))
@@ -32,6 +33,7 @@ class AttentionHead(nn.Module):
           hidden_dim = self.hidden_dim
           x = x.view(x.size(0), x.size(1), n_heads, hidden_dim//n_heads)
           x = self.preattn_ln(x)
+          x = self.dropout(x)
           mul = (x * \
                 self.Q.weight.view(1, 1, n_heads, hidden_dim//n_heads)).sum(-1) \
                 #* np.sqrt(5)
@@ -57,6 +59,7 @@ class BaseModel(pl.LightningModule):
         self.lin = nn.Linear(embed_dim, 256)
         self.attn_head = AttentionHead(256, 1)
         self.clf_head = nn.Linear(256, 11)
+        self.dropout = nn.Dropout(0.5)
         self.kld = nn.KLDivLoss(reduction="batchmean")
         self.lr = 1e-3
         self.predictions = []
@@ -64,6 +67,7 @@ class BaseModel(pl.LightningModule):
     def forward(self, embedding, lens, non_mask):
         x = self.initial_ln(embedding)
         x = self.lin(x)
+        x = self.dropout(x)
         x_pool, x_attns = self.attn_head(x, non_mask, lens)
         x_pred = self.clf_head(x_pool)
         #print(x_pred, x_attns)

@@ -20,3 +20,19 @@ data_files/embeddings
 outputs/esm1b
 outputs/prott5
 
+# Ignore Python compiled files
+**/__pycache__/
+*.pyc
+
+# Ignore model checkpoints and related files
+models/**/*.ckpt
+models/**/*.yaml
+models/**/*.pkl
+
+# Ignore all logs
+lightning_logs/
+**/*.log
+**/*.out
+
+# Ignore specific files from tracking
+**/events.out.tfevents.*
