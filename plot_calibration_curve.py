@@ -33,6 +33,20 @@ def extract_predictions(predictions_csv, class_columns):
 def plot_calibration_curve(true_labels_csv, predictions_csv, n_bins=10):
     """Plot calibration curves for each class and a separate overall calibration curve."""
     
+    # Define a fixed color map for each class
+    color_map = {
+    'Cytoplasm': 'dodgerblue',         # A bright but soft blue
+    'Nucleus': 'crimson',              # Softer than pure red, with good contrast
+    'Extracellular': 'forestgreen',    # A deep green that's more subdued
+    'Cell membrane': 'mediumorchid',   # A softer purple
+    'Mitochondrion': 'darkorange',     # Muted orange with good visibility
+    'Plastid': 'darkgoldenrod',        # A rich gold/brown tone
+    'Endoplasmic reticulum': 'teal',   # Soft but distinctive blue-green
+    'Lysosome/Vacuole': 'slategray',   # Neutral gray with a hint of blue
+    'Golgi apparatus': 'mediumvioletred', # Softer magenta
+    'Peroxisome': 'gold'               # Bright yellow with strong contrast
+    }
+    
     # Extract true labels and class names
     true_labels_dict, class_labels = extract_true_labels(true_labels_csv)
     
@@ -44,7 +58,7 @@ def plot_calibration_curve(true_labels_csv, predictions_csv, n_bins=10):
     all_pred_probs = []
     
     # 1. Plot individual calibration curves for each class
-    plt.figure(figsize=(15, 10))
+    plt.figure(figsize=(10, 8))
     
     for i, class_name in enumerate(class_labels):
         class_true = []
@@ -62,8 +76,8 @@ def plot_calibration_curve(true_labels_csv, predictions_csv, n_bins=10):
         # Calculate calibration curve for the class
         prob_true, prob_pred = calibration_curve(class_true, class_pred, n_bins=n_bins, strategy='uniform')
         
-        # Plot calibration curve for the class
-        plt.plot(prob_pred, prob_true, marker='o', label=class_name)
+        # Plot calibration curve for the class with a fixed color
+        plt.plot(prob_pred, prob_true, marker='o', label=class_name, color=color_map.get(class_name, 'gray'))
     
     # Plot the diagonal for perfect calibration
     plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly Calibrated")
@@ -83,7 +97,7 @@ def plot_calibration_curve(true_labels_csv, predictions_csv, n_bins=10):
     print(f"Class-specific calibration plot saved to {class_plot_path}")
     
     # 2. Plot overall calibration curve
-    plt.figure(figsize=(8, 6))
+    plt.figure(figsize=(10, 8))
     
     # Calculate overall calibration curve
     prob_true, prob_pred = calibration_curve(all_true_labels, all_pred_probs, n_bins=n_bins, strategy='uniform')

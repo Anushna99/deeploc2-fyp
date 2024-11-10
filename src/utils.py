@@ -479,6 +479,19 @@ def plot_combined_calibration_curve(data_df, output_folder, n_bins=10):
         output_folder (str): Path to save the calibration plots.
         n_bins (int): Number of bins for calibration.
     """
+    # Define a fixed color map for each class
+    color_map = {
+    'Cytoplasm': 'dodgerblue',         # A bright but soft blue
+    'Nucleus': 'crimson',              # Softer than pure red, with good contrast
+    'Extracellular': 'forestgreen',    # A deep green that's more subdued
+    'Cell membrane': 'mediumorchid',   # A softer purple
+    'Mitochondrion': 'darkorange',     # Muted orange with good visibility
+    'Plastid': 'darkgoldenrod',        # A rich gold/brown tone
+    'Endoplasmic reticulum': 'teal',   # Soft but distinctive blue-green
+    'Lysosome/Vacuole': 'slategray',   # Neutral gray with a hint of blue
+    'Golgi apparatus': 'mediumvioletred', # Softer magenta
+    'Peroxisome': 'gold'               # Bright yellow with strong contrast
+    }
     
     # Plot 1: Calibration curve for each class (no overall curve)
     plt.figure(figsize=(10, 8))
@@ -494,7 +507,7 @@ def plot_combined_calibration_curve(data_df, output_folder, n_bins=10):
         prob_true, prob_pred = calibration_curve(data_df[f'{class_name}_true_binary'], data_df[prob_col], n_bins=n_bins, strategy='uniform')
         
         # Plot calibration curve for each class
-        plt.plot(prob_pred, prob_true, marker='o', label=class_name)
+        plt.plot(prob_pred, prob_true, marker='o', label=class_name, color=color_map.get(class_name, 'gray'))
 
     # Perfect calibration line
     plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly Calibrated")
