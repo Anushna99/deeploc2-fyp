@@ -27,9 +27,13 @@ def check_required_files(folder_path, required_files):
 def prepare_uncertainty_results_path(dataset_name):
     """Prepare the dataset-specific directory inside 'uncertainity_results'."""
     uncertainty_results_path = os.path.join("outputs", "uncertainity_results", dataset_name)
+    if (dataset_name == 'hpa'):
+        true_labels_csv = 'hpa_testset.csv'
+    else :
+        true_labels_csv = 'data_files/multisub_5_partitions_unique.csv'
     os.makedirs(uncertainty_results_path, exist_ok=True)
     print(f"Results will be saved in: {uncertainty_results_path}")
-    return uncertainty_results_path
+    return uncertainty_results_path, true_labels_csv
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -53,7 +57,7 @@ if __name__ == "__main__":
     if check_folder_exists(selected_folder) and check_required_files(selected_folder, required_files):
         print("proceeding with calculating uncertainity...")
 
-        uncertainty_results_path = prepare_uncertainty_results_path(args.dataset)
+        uncertainty_results_path, true_labels_csv = prepare_uncertainty_results_path(args.dataset)
 
         # Merge prediction files and save the output to the relevant folder
         merge_df = merge_prediction_files(selected_folder, required_files, uncertainty_results_path)
@@ -61,11 +65,22 @@ if __name__ == "__main__":
         # calculate variance distribution over each classes
         plot_variance_distribution(merge_df, uncertainty_results_path)
 
+        print("Calculating metrics for each model")
+        for i in range(5):
+            model_result_path = os.path.join(uncertainty_results_path, f"model_{i+1}")
+            os.makedirs(model_result_path, exist_ok=True)
+            
+            model_file_path = os.path.join(selected_folder, required_files[i])
+            binary_predictions = get_binary_predictions_for_single_model(model_file_path, model_result_path, true_labels_csv)
+            
+            calculate_metrics(binary_predictions, model_result_path, args.dataset)
+            plot_combined_calibration_curve(binary_predictions, model_result_path)
+        
         # calculate metrics
         print("Calculating metrics for the ensemble results...")
-        binary_predictions = get_binary_predictions(merge_df, uncertainty_results_path)
+        binary_predictions = get_binary_predictions(merge_df, uncertainty_results_path, true_labels_csv)
 
-        calculate_metrics(binary_predictions, uncertainty_results_path)
+        calculate_metrics(binary_predictions, uncertainty_results_path, args.dataset)
 
         print("Generating calibaration curve...")
         plot_combined_calibration_curve(binary_predictions, uncertainty_results_path)

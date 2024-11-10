@@ -293,13 +293,17 @@ def extract_true_labels(true_labels_csv):
     
     # Iterate over each row and extract true labels based on binary values
     for _, row in true_df.iterrows():
-        acc = row['sid']
+        identifier_column = 'sid' if 'sid' in row else 'ACC'
+        acc = row[identifier_column]
         true_locations = [class_columns[i] for i, val in enumerate(row[class_columns]) if val == 1]
         true_labels_dict[acc] = ', '.join(true_locations) if true_locations else "None"
     
     return true_labels_dict
 
-def get_binary_predictions(merged_df, output_folder, label_thresholds=esm1b_label_thresholds, true_labels_csv='/home/pasindumadusha_20/deeploc2-fyp/hpa_testset.csv'):
+def get_binary_predictions(merged_df, output_folder, true_labels_csv, label_thresholds=esm1b_label_thresholds):
+    '''
+    combine predictions with true values for each sequence and save to a csv file.
+    '''
     # Initialize a list to store the final results with the desired structure
     results = []
 
@@ -346,63 +350,78 @@ def get_binary_predictions(merged_df, output_folder, label_thresholds=esm1b_labe
 
     return binary_df
 
-# def get_binary_predictions(merged_df_csv, output_folder, label_thresholds=esm1b_label_thresholds, true_labels_csv='/home/pasindumadusha_20/deeploc2-fyp/hpa_testset.csv'):
-#     """
-#     Process the predictions CSV, apply thresholds for each class, and save results with predicted and true labels.
-#     """
-#     # Load the merged predictions file
-#     merged_df = pd.read_csv(merged_df_csv)
+def get_binary_predictions_for_single_model(merged_df_csv, output_folder, true_labels_csv, label_thresholds=esm1b_label_thresholds):
+    """
+    Process the predictions CSV, apply thresholds for each class, and save results with predicted and true labels.
+    """
+    # Load the merged predictions file
+    merged_df = pd.read_csv(merged_df_csv)
     
-#     # Initialize a list to store the final results with the desired structure
-#     results = []
+    # Initialize a list to store the final results with the desired structure
+    results = []
 
-#     # Loop over each row to apply thresholds and determine predicted labels
-#     for idx, row in merged_df.iterrows():
-#         acc = row["ACC"]
-#         row_data = {"ACC": acc}  # Initialize row data with ACC 
+    # Loop over each row to apply thresholds and determine predicted labels
+    for idx, row in merged_df.iterrows():
+        acc = row["ACC"]
+        row_data = {"ACC": acc}  # Initialize row data with ACC 
         
-#         # Initialize a list to store the predicted classes
-#         predicted_labels = []
+        # Initialize a list to store the predicted classes
+        predicted_labels = []
 
-#         # Loop over each class to apply threshold and get prediction values directly
-#         for i, class_name in enumerate(class_labels):
-#             # Get the prediction value for the current class
-#             prediction_value = row[class_name]
-#             row_data[class_name] = prediction_value  # Add prediction value to the row
+        # Loop over each class to apply threshold and get prediction values directly
+        for i, class_name in enumerate(class_labels):
+            # Get the prediction value for the current class
+            prediction_value = row[class_name]
+            row_data[class_name] = prediction_value  # Add prediction value to the row
             
-#             # Apply threshold to decide if this class is predicted
-#             if prediction_value >= label_thresholds[i]:
-#                 predicted_labels.append(class_name)
+            # Apply threshold to decide if this class is predicted
+            if prediction_value >= label_thresholds[i]:
+                predicted_labels.append(class_name)
         
-#         # Join predicted class names with commas and store them in `predicted_label`
-#         row_data["predicted_label"] = ", ".join(predicted_labels) if predicted_labels else "None"
+        # Join predicted class names with commas and store them in `predicted_label`
+        row_data["predicted_label"] = ", ".join(predicted_labels) if predicted_labels else "None"
         
-#         # Append the row data to the results list
-#         results.append(row_data)
+        # Append the row data to the results list
+        results.append(row_data)
 
-#     # Convert the results list to a DataFrame
-#     binary_df = pd.DataFrame(results)
+    # Convert the results list to a DataFrame
+    binary_df = pd.DataFrame(results)
 
-#     print(binary_df.head(10))  # Display the first 10 rows for verification
+    print(binary_df.head(10))  # Display the first 10 rows for verification
     
-#     # Extract true labels from the CSV
-#     true_labels_dict = extract_true_labels(true_labels_csv)
+    # Extract true labels from the CSV
+    true_labels_dict = extract_true_labels(true_labels_csv)
 
-#     # Map the true labels to the binary_df based on the ACC column
-#     binary_df['true_label'] = binary_df['ACC'].map(true_labels_dict)
+    # Map the true labels to the binary_df based on the ACC column
+    binary_df['true_label'] = binary_df['ACC'].map(true_labels_dict)
 
-#     print(binary_df.head(10))
+    print(binary_df.head(10))
 
-#     # Save the output with predictions and true labels
-#     output_path = os.path.join(output_folder, "predictions_with_true_labels_model_5.csv")
-#     binary_df.to_csv(output_path, index=False)
-#     print(f"Binary predictions with true labels saved to: {output_path}")
+    # Save the output with predictions and true labels
+    output_path = os.path.join(output_folder, "predictions_with_true_labels_model_5.csv")
+    binary_df.to_csv(output_path, index=False)
+    print(f"Binary predictions with true labels saved to: {output_path}")
 
-#     return binary_df
+    return binary_df
 
-def calculate_metrics(data_df, output_folder):
+def calculate_metrics(data_df, output_folder, dataset):
+    '''
+    Calculate metrics related to the model performance. Removed ["Membrane", "Extracellular", "Plastid", "Lysosome/Vacuole", "Peroxisome"]
+    when calculating the metrics
+        1.overall accuracy
+        2.Jaccard
+        3.MicroF1
+        4.MacroF2
+        5.MCC values for each class
+    '''
     # Define class labels excluding the absent ones
-    filtered_class_labels = [label for label in class_labels if label not in ["Membrane", "Extracellular", "Plastid", "Lysosome/Vacuole", "Peroxisome"]]
+    if dataset == 'hpa':
+        excluded_labels = ["Membrane", "Extracellular", "Plastid", "Lysosome/Vacuole", "Peroxisome"]
+    else:
+        excluded_labels = ["Membrane"]
+
+    # Filter the class labels based on the excluded labels
+    filtered_class_labels = [label for label in class_labels if label not in excluded_labels]
 
     # Initialize a dictionary to store metrics
     metrics = {
@@ -448,18 +467,21 @@ def calculate_metrics(data_df, output_folder):
 
     print(f"Metrics table saved to: {output_path}")
         
+
 def plot_combined_calibration_curve(data_df, output_folder, n_bins=10):
     """
-    Plot a combined calibration curve for all classes in one plot.
+    Plot two calibration curves:
+    1. Calibration curve for each individual class (without overall curve).
+    2. Overall calibration curve (without individual classes).
     
     Parameters:
         data_df (pd.DataFrame): DataFrame containing mean predicted probabilities and true labels for each class.
-        output_folder (str): Path to save the calibration plot.
+        output_folder (str): Path to save the calibration plots.
         n_bins (int): Number of bins for calibration.
     """
+    
+    # Plot 1: Calibration curve for each class (no overall curve)
     plt.figure(figsize=(10, 8))
-
-    # Loop through each class and calculate calibration data
     for class_name in class_labels:
         # Extract mean predicted probabilities and true labels for the class
         prob_col = class_name
@@ -468,25 +490,54 @@ def plot_combined_calibration_curve(data_df, output_folder, n_bins=10):
         # Convert the true label to binary format for each class
         data_df[f'{class_name}_true_binary'] = data_df[true_col].apply(lambda x: 1 if class_name in x else 0)
 
-        # Calculate calibration curve
+        # Calculate calibration curve for each class
         prob_true, prob_pred = calibration_curve(data_df[f'{class_name}_true_binary'], data_df[prob_col], n_bins=n_bins, strategy='uniform')
-
-        # Plot calibration curve
+        
+        # Plot calibration curve for each class
         plt.plot(prob_pred, prob_true, marker='o', label=class_name)
 
-    # Plot the diagonal for perfect calibration
+    # Perfect calibration line
     plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly Calibrated")
 
     # Set plot labels and title
     plt.xlabel("Mean Predicted Probability")
     plt.ylabel("True Frequency")
-    plt.title("Combined Calibration Plot for All Classes")
+    plt.title("Calibration Plot for Each Class")
     plt.legend(loc="best")
     
-    # Save the plot
-    output_path = os.path.join(output_folder, "combined_calibration_plot.png")
+    # Save the first plot with only individual class curves
+    class_output_path = os.path.join(output_folder, "calibration_plot_with_classes.png")
     plt.tight_layout()
-    plt.savefig(output_path)
+    plt.savefig(class_output_path)
     plt.close()
+    print(f"Calibration plot with individual classes saved to {class_output_path}")
 
-    print(f"Combined calibration plot saved to {output_path}")
+    # Plot 2: Only Overall Calibration Curve
+    plt.figure(figsize=(10, 8))
+    # Collect all class probabilities and true labels for the overall curve
+    all_probs = []
+    all_true_labels = []
+    for class_name in class_labels:
+        all_probs.extend(data_df[class_name])
+        all_true_labels.extend(data_df[f'{class_name}_true_binary'])
+
+    # Calculate overall calibration curve
+    overall_prob_true, overall_prob_pred = calibration_curve(all_true_labels, all_probs, n_bins=n_bins, strategy='uniform')
+    
+    # Plot the overall calibration curve
+    plt.plot(overall_prob_pred, overall_prob_true, marker='o', color='black', linestyle='--', label='Overall Calibration')
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly Calibrated")
+
+    # Set plot labels and title for overall only
+    plt.xlabel("Mean Predicted Probability")
+    plt.ylabel("True Frequency")
+    plt.title("Overall Calibration Plot")
+    plt.legend(loc="best")
+
+    # Save the second plot with only the overall curve
+    overall_output_path = os.path.join(output_folder, "overall_calibration_plot.png")
+    plt.tight_layout()
+    plt.savefig(overall_output_path)
+    plt.close()
+    print(f"Overall calibration plot saved to {overall_output_path}")
+

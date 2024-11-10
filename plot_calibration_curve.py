@@ -1,41 +1,91 @@
-import numpy as np
 import pandas as pd
+import numpy as np
 from sklearn.calibration import calibration_curve
 import matplotlib.pyplot as plt
+import os
 
-# Load the provided test data
-true_data = pd.read_csv('hpa_testset.csv')
-predicted_data = pd.read_csv('./outputs/results_hpa_testset_20240620_013643.csv/results_20240619-204146.csv')
+def extract_true_labels(true_labels_csv):
+    """Extract true labels for each protein and format as a binary array for each class."""
+    true_df = pd.read_csv(true_labels_csv)
+    class_columns = true_df.columns[1:-2]  # Exclude 'sid', 'Lengths', and 'fasta' columns
 
-# Extract common class names from both datasets
-class_names = [col for col in true_data.columns if col in predicted_data.columns]
+    true_labels_dict = {}
+    for _, row in true_df.iterrows():
+        protein_id = row['sid']
+        true_locations = [1 if row[class_name] == 1 else 0 for class_name in class_columns]
+        true_labels_dict[protein_id] = true_locations
 
-# Initialize a figure for plotting
-plt.figure(figsize=(10, 8))
+    return true_labels_dict, class_columns.tolist()
 
-# Iterate through each class
-for class_name in class_names:
-    # Extract true labels and predicted probabilities for the current class
-    y_true = true_data[class_name]
-    y_pred_prob = predicted_data[class_name]
+def extract_predictions(predictions_csv, class_columns):
+    """Extract predicted probabilities for each protein and convert to binary predictions."""
+    pred_df = pd.read_csv(predictions_csv)
+    
+    # Create a dictionary to store predictions
+    pred_labels_dict = {}
+    for _, row in pred_df.iterrows():
+        protein_id = row['Protein_ID']
+        pred_probs = [row[class_name] for class_name in class_columns]
+        pred_labels_dict[protein_id] = pred_probs
 
-    # Compute the calibration curve
-    fraction_of_positives, mean_predicted_value = calibration_curve(y_true, y_pred_prob, n_bins=10)
+    return pred_labels_dict
 
-    # Plot the calibration curve for the current class
-    plt.plot(mean_predicted_value, fraction_of_positives, 's-', label=class_name)
+def plot_calibration_curve(true_labels_csv, predictions_csv, n_bins=10):
+    """Plot calibration curves for each class and an overall calibration curve."""
 
-# Plot the perfect calibration line
-plt.plot([0, 1], [0, 1], '--', color='gray', label='Perfectly calibrated')
+    # Extract true labels and class names
+    true_labels_dict, class_labels = extract_true_labels(true_labels_csv)
+    
+    # Extract predicted probabilities
+    pred_labels_dict = extract_predictions(predictions_csv, class_labels)
 
-# Set labels and title
-plt.xlabel('Mean predicted value')
-plt.ylabel('Fraction of positives')
-plt.legend(title='Class')
-plt.title('Calibration Curves for DeepLoc2 Classes')
+    # Prepare data for calibration
+    all_true_labels = []
+    all_pred_probs = []
+    
+    plt.figure(figsize=(15, 10))
+    
+    # Loop through each class to plot individual calibration curves
+    for i, class_name in enumerate(class_labels):
+        class_true = []
+        class_pred = []
+        
+        for protein_id in true_labels_dict.keys():
+            if protein_id in pred_labels_dict:
+                class_true.append(true_labels_dict[protein_id][i])
+                class_pred.append(pred_labels_dict[protein_id][i])
 
-# Save the plot as a PNG file in the outputs folder
-plt.savefig('./outputs/calibration_curves_all_classes.png')
+        # Append to overall data for combined calibration curve
+        all_true_labels.extend(class_true)
+        all_pred_probs.extend(class_pred)
+        
+        # Calculate calibration curve for the class
+        prob_true, prob_pred = calibration_curve(class_true, class_pred, n_bins=n_bins, strategy='uniform')
+        
+        # Plot calibration curve
+        plt.plot(prob_pred, prob_true, marker='o', label=class_name)
+    
+    # Overall calibration curve
+    prob_true, prob_pred = calibration_curve(all_true_labels, all_pred_probs, n_bins=n_bins, strategy='uniform')
+    plt.plot(prob_pred, prob_true, marker='o', linestyle='--', color='black', label='Overall Calibration')
+    
+    # Plot the diagonal for perfect calibration
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly Calibrated")
+    
+    # Set plot labels and title
+    plt.xlabel("Mean Predicted Probability")
+    plt.ylabel("True Frequency")
+    plt.title("Calibration Plot for Each Class and Overall for Original Model - HPA")
+    plt.legend(loc="best")
+    
+    # Save the plot
+    output_path = os.path.join('.', "calibration_plot_hpa_original.png")
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+    
+    print(f"Calibration plot saved to {output_path}")
 
-# Display the plot
-plt.show()
+true_data = 'hpa_testset.csv'
+prediction_data = 'outputs/results_hpa_testset_20240620_013643.csv/results_20240619-204146.csv'
+plot_calibration_curve(true_data, prediction_data)
