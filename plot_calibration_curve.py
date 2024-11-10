@@ -31,21 +31,21 @@ def extract_predictions(predictions_csv, class_columns):
     return pred_labels_dict
 
 def plot_calibration_curve(true_labels_csv, predictions_csv, n_bins=10):
-    """Plot calibration curves for each class and an overall calibration curve."""
-
+    """Plot calibration curves for each class and a separate overall calibration curve."""
+    
     # Extract true labels and class names
     true_labels_dict, class_labels = extract_true_labels(true_labels_csv)
     
     # Extract predicted probabilities
     pred_labels_dict = extract_predictions(predictions_csv, class_labels)
 
-    # Prepare data for calibration
+    # Prepare data for overall calibration
     all_true_labels = []
     all_pred_probs = []
     
+    # 1. Plot individual calibration curves for each class
     plt.figure(figsize=(15, 10))
     
-    # Loop through each class to plot individual calibration curves
     for i, class_name in enumerate(class_labels):
         class_true = []
         class_pred = []
@@ -62,29 +62,51 @@ def plot_calibration_curve(true_labels_csv, predictions_csv, n_bins=10):
         # Calculate calibration curve for the class
         prob_true, prob_pred = calibration_curve(class_true, class_pred, n_bins=n_bins, strategy='uniform')
         
-        # Plot calibration curve
+        # Plot calibration curve for the class
         plt.plot(prob_pred, prob_true, marker='o', label=class_name)
     
-    # Overall calibration curve
+    # Plot the diagonal for perfect calibration
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly Calibrated")
+    
+    # Set plot labels and title for class-specific plot
+    plt.xlabel("Mean Predicted Probability")
+    plt.ylabel("True Frequency")
+    plt.title("Calibration Plot for Each Class - HPA Original Model")
+    plt.legend(loc="best")
+    
+    # Save the class-specific plot
+    class_plot_path = os.path.join('.', "original_model_calibration_plot_classes_hpa_testset.png")
+    plt.tight_layout()
+    plt.savefig(class_plot_path)
+    plt.close()
+    
+    print(f"Class-specific calibration plot saved to {class_plot_path}")
+    
+    # 2. Plot overall calibration curve
+    plt.figure(figsize=(8, 6))
+    
+    # Calculate overall calibration curve
     prob_true, prob_pred = calibration_curve(all_true_labels, all_pred_probs, n_bins=n_bins, strategy='uniform')
+    
+    # Plot overall calibration curve
     plt.plot(prob_pred, prob_true, marker='o', linestyle='--', color='black', label='Overall Calibration')
     
     # Plot the diagonal for perfect calibration
     plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly Calibrated")
     
-    # Set plot labels and title
+    # Set plot labels and title for overall plot
     plt.xlabel("Mean Predicted Probability")
     plt.ylabel("True Frequency")
-    plt.title("Calibration Plot for Each Class and Overall for Original Model - HPA")
+    plt.title("Overall Calibration Plot - HPA Original Model")
     plt.legend(loc="best")
     
-    # Save the plot
-    output_path = os.path.join('.', "calibration_plot_hpa_original.png")
+    # Save the overall plot
+    overall_plot_path = os.path.join('.', "original_model_calibration_plot_overall_hpa_testset.png")
     plt.tight_layout()
-    plt.savefig(output_path)
+    plt.savefig(overall_plot_path)
     plt.close()
     
-    print(f"Calibration plot saved to {output_path}")
+    print(f"Overall calibration plot saved to {overall_plot_path}")
 
 true_data = 'hpa_testset.csv'
 prediction_data = 'outputs/results_hpa_testset_20240620_013643.csv/results_20240619-204146.csv'
