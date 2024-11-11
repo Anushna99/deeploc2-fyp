@@ -35,7 +35,7 @@ plt.legend(title='Class')
 plt.title('Calibration Curves for DeepLoc2 Classes')
 
 # Save the plot as a PNG file in the outputs folder
-plt.savefig('./outputs/calibration_curves_all_classes.png')
+plt.savefig('./outputs/calibration_curves_all_classes_dropout.png')
 
 # Display the plot
 plt.show()

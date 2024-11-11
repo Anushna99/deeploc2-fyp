@@ -655,7 +655,31 @@ class HPATestDataset(torch.utils.data.Dataset):
 
 
 
+    def get_all_data_dataloader(self):
+        """
+        Get a DataLoader for the entire dataset without splitting into train/val sets.
+        """
+        # Load the entire SwissProt dataset without partitioning
+        data_df = get_swissprot_df(self.clip_len)
 
+        # Load embeddings file
+        embedding_file = h5py.File(self.embedding_file, "r")
+
+        # Create a dataset with all the data
+        dataset = EmbeddingsLocalizationDataset(embedding_file, data_df)
+
+        # Generate batch indices for the entire dataset
+        batches = dataset.get_batch_indices(4096 * 4, BATCH_SIZE, extra_toks_per_seq=0)
+
+        # Create a DataLoader for the entire dataset
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            collate_fn=TrainBatchConverter(self.alphabet, self.embed_len),
+            batch_sampler=batches,
+            num_workers=self.num_workers,
+            pin_memory=True
+        )
+        return dataloader
 
 
 

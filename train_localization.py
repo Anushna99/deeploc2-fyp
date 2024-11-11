@@ -9,10 +9,13 @@ import argparse
 import subprocess
 import os
 import warnings
+import itertools
 
 warnings.filterwarnings(
     "ignore", ".*Trying to infer the `batch_size` from an ambiguous collection.*"
 )
+
+dropout_rates = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
 
 def train_model(model_attrs: ModelAttributes, datahandler:DataloaderHandler, outer_i: int):
     train_dataloader, val_dataloader = datahandler.get_train_val_dataloaders(outer_i) # Gets training and validation data loaders for the current model iteration.
@@ -43,7 +46,7 @@ def train_model(model_attrs: ModelAttributes, datahandler:DataloaderHandler, out
     checkpoint_callback = ModelCheckpoint(
         monitor='bce_loss',
         dirpath=model_attrs.save_path,
-        filename= f"{outer_i}_1Layer",
+        filename=f"{outer_i}_1Layer_{lin_dropout}_{attn_dropout}",
         save_top_k=1,
         every_n_epochs=1,
         save_last=False,
@@ -105,13 +108,21 @@ if __name__ == "__main__":
         embed_len=model_attrs.embed_len
     )
     print("Training subcellular localization models")
-    # train the same thing with different initial values or using different subsets
-    for i in range(0, 5):
-        print(f"Training model {i+1} / 5")
-        #  Verifies if a checkpoint file already exists in the save path.
-        if not os.path.exists(os.path.join(model_attrs.save_path, f"{i}_1Layer.ckpt")):
-            train_model(model_attrs, datahandler, i)
-    print("Finished training subcellular localization models")
+    # Iterate over all combinations of dropout rates (only once for each combination)
+    for lin_dropout, attn_dropout in itertools.product(dropout_rates, dropout_rates):
+        print(f"Training with Linear Dropout: {lin_dropout}, Attention Dropout: {attn_dropout}")
+        
+        # Generate a unique checkpoint filename based on the dropout rates
+        model_filename = f"1Layer_lin{lin_dropout}_attn{attn_dropout}.ckpt"
+        
+        # Check if the model has already been trained and saved
+        if os.path.exists(os.path.join(model_attrs.save_path, model_filename)):
+            print(f"Model {model_filename} already exists, skipping...")
+            continue
+        
+        # Train the model with the current dropout configuration
+        print(f"Training model for dropout rates lin={lin_dropout}, attn={attn_dropout}")
+        train_model(model_attrs, datahandler, lin_dropout, attn_dropout)
 
     print("Using trained models to generate outputs for signal prediction training")
     generate_sl_outputs(model_attrs=model_attrs, datahandler=datahandler)
