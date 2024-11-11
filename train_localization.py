@@ -9,6 +9,7 @@ import argparse
 import subprocess
 import os
 import warnings
+torch.cuda.empty_cache()
 
 warnings.filterwarnings(
     "ignore", ".*Trying to infer the `batch_size` from an ambiguous collection.*"

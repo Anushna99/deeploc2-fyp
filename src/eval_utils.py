@@ -204,7 +204,10 @@ def generate_sl_predictions(
         dataloader = datahandler.get_test_dataloader(model_attrs)
         if not os.path.exists(os.path.join(model_attrs.outputs_save_path, f"inner_{outer_i}_{inner_i}.pkl")):
             # path to the model i trained checkpoint
-            model_attrs.save_path = 'models/models_esm1b'
+            if (model_attrs.model_type == FAST):
+                model_attrs.save_path = 'models/models_esm1b'
+            else:
+                model_attrs.save_path = 'models/models_prott5'
             path = f"{model_attrs.save_path}/{outer_i}_{inner_i}.ckpt"
             # evaluate from that checkpoint
             model = model_attrs.class_type.load_from_checkpoint(path).to(device).eval()

@@ -516,9 +516,16 @@ class DataloaderHandler:
     
     def get_test_dataloader(self, model_attrs):
         if (model_attrs.dataset == 'swissprot'):
-            embedding_file = h5py.File('data_files/embeddings/esm1b_swissprot.h5', "r")
+            if (model_attrs.model_type == FAST):
+                embedding_file = h5py.File('data_files/embeddings/esm1b_swissprot.h5', "r")
+            else:
+                embedding_file = h5py.File('data_files/embeddings/prott5_swissprot.h5', "r")
         else:
-            embedding_file = h5py.File('data_files/embeddings/esm1b_hpa.h5', "r")
+            if (model_attrs.model_type == FAST):
+                embedding_file = h5py.File('data_files/embeddings/esm1b_hpa.h5', "r")
+            else:
+                embedding_file = h5py.File('data_files/embeddings/prott5_hpa.h5', "r")
+        print('embedding file selected: ', embedding_file)
         test_dataset = EmbeddingsPreProcessDataset(embedding_file)
         test_batches = test_dataset.get_batch_indices(4096*4, BATCH_SIZE, extra_toks_per_seq=0)
         test_dataloader = torch.utils.data.DataLoader(test_dataset, collate_fn=TestBatchConverter(self.embed_len), batch_sampler=test_batches, num_workers=self.num_workers,

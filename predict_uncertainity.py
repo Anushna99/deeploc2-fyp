@@ -24,13 +24,10 @@ def check_required_files(folder_path, required_files):
     print("All required prediction files are present.")
     return True
 
-def prepare_uncertainty_results_path(dataset_name):
-    """Prepare the dataset-specific directory inside 'uncertainity_results'."""
-    uncertainty_results_path = os.path.join("outputs", "uncertainity_results", dataset_name)
-    if (dataset_name == 'hpa'):
-        true_labels_csv = 'hpa_testset.csv'
-    else :
-        true_labels_csv = 'data_files/multisub_5_partitions_unique.csv'
+def prepare_uncertainty_results_path(dataset_name, model_type):
+    """Prepare the dataset-specific and model-specific directory inside 'uncertainity_results'."""
+    uncertainty_results_path = os.path.join("outputs", "uncertainity_results", model_type, dataset_name)
+    true_labels_csv = 'hpa_testset.csv' if dataset_name == 'hpa' else 'data_files/multisub_5_partitions_unique.csv'
     os.makedirs(uncertainty_results_path, exist_ok=True)
     print(f"Results will be saved in: {uncertainty_results_path}")
     return uncertainty_results_path, true_labels_csv
@@ -38,6 +35,13 @@ def prepare_uncertainty_results_path(dataset_name):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
+    parser.add_argument(
+        "-m","--model", 
+        default="Fast",
+        choices=['Accurate', 'Fast'],
+        type=str,
+        help="Model to use."
+    )
     parser.add_argument(
         "-d", "--dataset", 
         choices=["swissprot", "hpa"], 
@@ -47,17 +51,24 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     test_results_saved_folder = {
-        "swissprot": "outputs/test_swissprot_esm1b",
-        "hpa": "outputs/test_hpa_esm1b"
+        'Accurate': {
+            "swissprot": "outputs/test_swissprot_prott5",
+            "hpa": "outputs/test_hpa_prott5"
+        },
+        'Fast': {
+            "swissprot": "outputs/test_swissprot_esm1b",
+            "hpa": "outputs/test_hpa_esm1b"
+        }
     }
 
-    selected_folder = test_results_saved_folder.get(args.dataset)
+    # Get the selected folder for the specific dataset and model
+    selected_folder = test_results_saved_folder[args.model][args.dataset]
     required_files = [f"{i}_1Layer_output_predictions.csv" for i in range(5)]
 
     if check_folder_exists(selected_folder) and check_required_files(selected_folder, required_files):
         print("proceeding with calculating uncertainity...")
 
-        uncertainty_results_path, true_labels_csv = prepare_uncertainty_results_path(args.dataset)
+        uncertainty_results_path, true_labels_csv = prepare_uncertainty_results_path(args.dataset, args.model)
 
         # Merge prediction files and save the output to the relevant folder
         merge_df = merge_prediction_files(selected_folder, required_files, uncertainty_results_path)
@@ -71,14 +82,14 @@ if __name__ == "__main__":
             os.makedirs(model_result_path, exist_ok=True)
             
             model_file_path = os.path.join(selected_folder, required_files[i])
-            binary_predictions = get_binary_predictions_for_single_model(model_file_path, model_result_path, true_labels_csv)
+            binary_predictions = get_binary_predictions_for_single_model(model_file_path, model_result_path, true_labels_csv, args.model)
             
             calculate_metrics(binary_predictions, model_result_path, args.dataset)
             plot_combined_calibration_curve(binary_predictions, model_result_path)
         
         # calculate metrics
         print("Calculating metrics for the ensemble results...")
-        binary_predictions = get_binary_predictions(merge_df, uncertainty_results_path, true_labels_csv)
+        binary_predictions = get_binary_predictions(merge_df, uncertainty_results_path, true_labels_csv, args.model)
 
         calculate_metrics(binary_predictions, uncertainty_results_path, args.dataset)
 

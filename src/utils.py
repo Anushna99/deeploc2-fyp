@@ -268,7 +268,7 @@ def plot_variance_distribution(df, output_folder):
 esm1b_label_thresholds = np.array([0.45380859, 0.46953125, 0.52753906, 0.64638672, 
                             0.52368164, 0.63730469, 0.65859375, 0.62783203, 
                             0.56484375, 0.66777344, 0.71679688])
-prott5_label_threshold = np.array([0.45717773, 0.47612305, 0.50136719, 0.61728516, 0.56464844, 
+prott5_label_thresholds = np.array([0.45717773, 0.47612305, 0.50136719, 0.61728516, 0.56464844, 
                                    0.62197266, 0.63945312, 0.60898438, 0.58476562, 0.64941406, 0.73642578])
 class_labels = CATEGORIES
 
@@ -300,10 +300,14 @@ def extract_true_labels(true_labels_csv):
     
     return true_labels_dict
 
-def get_binary_predictions(merged_df, output_folder, true_labels_csv, label_thresholds=esm1b_label_thresholds):
+def get_binary_predictions(merged_df, output_folder, true_labels_csv, model):
     '''
     combine predictions with true values for each sequence and save to a csv file.
     '''
+    if (model == 'Fast'):
+        label_thresholds=esm1b_label_thresholds
+    else:
+        label_thresholds=prott5_label_thresholds
     # Initialize a list to store the final results with the desired structure
     results = []
 
@@ -350,10 +354,14 @@ def get_binary_predictions(merged_df, output_folder, true_labels_csv, label_thre
 
     return binary_df
 
-def get_binary_predictions_for_single_model(merged_df_csv, output_folder, true_labels_csv, label_thresholds=esm1b_label_thresholds):
+def get_binary_predictions_for_single_model(merged_df_csv, output_folder, true_labels_csv, model):
     """
     Process the predictions CSV, apply thresholds for each class, and save results with predicted and true labels.
     """
+    if (model == 'Fast'):
+        label_thresholds=esm1b_label_thresholds
+    else:
+        label_thresholds=prott5_label_thresholds
     # Load the merged predictions file
     merged_df = pd.read_csv(merged_df_csv)
     
@@ -398,7 +406,7 @@ def get_binary_predictions_for_single_model(merged_df_csv, output_folder, true_l
     print(binary_df.head(10))
 
     # Save the output with predictions and true labels
-    output_path = os.path.join(output_folder, "predictions_with_true_labels_model_5.csv")
+    output_path = os.path.join(output_folder, "predictions_with_true_labels.csv")
     binary_df.to_csv(output_path, index=False)
     print(f"Binary predictions with true labels saved to: {output_path}")
 
