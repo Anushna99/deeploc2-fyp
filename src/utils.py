@@ -8,6 +8,7 @@ import os
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, jaccard_score, f1_score, matthews_corrcoef
 from sklearn.calibration import calibration_curve
+from sklearn.metrics import brier_score_loss
 
 class ModelAttributes:
     '''
@@ -489,20 +490,23 @@ def plot_combined_calibration_curve(data_df, output_folder, n_bins=10):
     """
     # Define a fixed color map for each class
     color_map = {
-    'Cytoplasm': 'dodgerblue',         # A bright but soft blue
-    'Nucleus': 'crimson',              # Softer than pure red, with good contrast
-    'Extracellular': 'forestgreen',    # A deep green that's more subdued
-    'Cell membrane': 'mediumorchid',   # A softer purple
-    'Mitochondrion': 'darkorange',     # Muted orange with good visibility
-    'Plastid': 'darkgoldenrod',        # A rich gold/brown tone
-    'Endoplasmic reticulum': 'teal',   # Soft but distinctive blue-green
-    'Lysosome/Vacuole': 'slategray',   # Neutral gray with a hint of blue
-    'Golgi apparatus': 'mediumvioletred', # Softer magenta
-    'Peroxisome': 'gold'               # Bright yellow with strong contrast
+        'Cytoplasm': 'dodgerblue',
+        'Nucleus': 'crimson',
+        'Extracellular': 'forestgreen',
+        'Cell membrane': 'mediumorchid',
+        'Mitochondrion': 'darkorange',
+        'Plastid': 'darkgoldenrod',
+        'Endoplasmic reticulum': 'teal',
+        'Lysosome/Vacuole': 'slategray',
+        'Golgi apparatus': 'mediumvioletred',
+        'Peroxisome': 'gold'
     }
+    
+    class_labels = list(color_map.keys())  # Define class labels based on color map keys
     
     # Plot 1: Calibration curve for each class (no overall curve)
     plt.figure(figsize=(10, 8))
+
     for class_name in class_labels:
         # Extract mean predicted probabilities and true labels for the class
         prob_col = class_name
@@ -514,8 +518,11 @@ def plot_combined_calibration_curve(data_df, output_folder, n_bins=10):
         # Calculate calibration curve for each class
         prob_true, prob_pred = calibration_curve(data_df[f'{class_name}_true_binary'], data_df[prob_col], n_bins=n_bins, strategy='uniform')
         
-        # Plot calibration curve for each class
-        plt.plot(prob_pred, prob_true, marker='o', label=class_name, color=color_map.get(class_name, 'gray'))
+        # Calculate Brier score for each class
+        brier_score = brier_score_loss(data_df[f'{class_name}_true_binary'], data_df[prob_col])
+        
+        # Plot calibration curve for each class with Brier score in the legend
+        plt.plot(prob_pred, prob_true, marker='o', label=f"{class_name} (Brier: {brier_score:.3f})", color=color_map.get(class_name, 'gray'))
 
     # Perfect calibration line
     plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly Calibrated")
@@ -545,20 +552,22 @@ def plot_combined_calibration_curve(data_df, output_folder, n_bins=10):
     # Calculate overall calibration curve
     overall_prob_true, overall_prob_pred = calibration_curve(all_true_labels, all_probs, n_bins=n_bins, strategy='uniform')
     
-    # Plot the overall calibration curve
-    plt.plot(overall_prob_pred, overall_prob_true, marker='o', color='black', linestyle='--', label='Overall Calibration')
+    # Calculate overall Brier score
+    overall_brier_score = brier_score_loss(all_true_labels, all_probs)
+    
+    # Plot the overall calibration curve with Brier score in the legend
+    plt.plot(overall_prob_pred, overall_prob_true, marker='o', color='black', linestyle='--', label=f'Overall Calibration (Brier: {overall_brier_score:.3f})')
     plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly Calibrated")
 
     # Set plot labels and title for overall only
     plt.xlabel("Mean Predicted Probability")
     plt.ylabel("True Frequency")
     plt.title("Overall Calibration Plot")
+    
+    # Add overall Brier score to legend
     plt.legend(loc="best")
-
-    # Save the second plot with only the overall curve
-    overall_output_path = os.path.join(output_folder, "overall_calibration_plot.png")
     plt.tight_layout()
+    overall_output_path = os.path.join(output_folder, "overall_calibration_plot.png")
     plt.savefig(overall_output_path)
     plt.close()
     print(f"Overall calibration plot saved to {overall_output_path}")
-

@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.calibration import calibration_curve
+from sklearn.metrics import brier_score_loss
 import matplotlib.pyplot as plt
 import os
 
@@ -31,20 +32,20 @@ def extract_predictions(predictions_csv, class_columns):
     return pred_labels_dict
 
 def plot_calibration_curve(true_labels_csv, predictions_csv, n_bins=10):
-    """Plot calibration curves for each class and a separate overall calibration curve."""
+    """Plot calibration curves for each class and a separate overall calibration curve with calibration metrics."""
     
     # Define a fixed color map for each class
     color_map = {
-    'Cytoplasm': 'dodgerblue',         # A bright but soft blue
-    'Nucleus': 'crimson',              # Softer than pure red, with good contrast
-    'Extracellular': 'forestgreen',    # A deep green that's more subdued
-    'Cell membrane': 'mediumorchid',   # A softer purple
-    'Mitochondrion': 'darkorange',     # Muted orange with good visibility
-    'Plastid': 'darkgoldenrod',        # A rich gold/brown tone
-    'Endoplasmic reticulum': 'teal',   # Soft but distinctive blue-green
-    'Lysosome/Vacuole': 'slategray',   # Neutral gray with a hint of blue
-    'Golgi apparatus': 'mediumvioletred', # Softer magenta
-    'Peroxisome': 'gold'               # Bright yellow with strong contrast
+    'Cytoplasm': 'dodgerblue',         
+    'Nucleus': 'crimson',              
+    'Extracellular': 'forestgreen',    
+    'Cell membrane': 'mediumorchid',   
+    'Mitochondrion': 'darkorange',     
+    'Plastid': 'darkgoldenrod',        
+    'Endoplasmic reticulum': 'teal',   
+    'Lysosome/Vacuole': 'slategray',   
+    'Golgi apparatus': 'mediumvioletred', 
+    'Peroxisome': 'gold'               
     }
     
     # Extract true labels and class names
@@ -59,6 +60,8 @@ def plot_calibration_curve(true_labels_csv, predictions_csv, n_bins=10):
     
     # 1. Plot individual calibration curves for each class
     plt.figure(figsize=(10, 8))
+    
+    brier_scores = {}  # Store Brier scores for each class
     
     for i, class_name in enumerate(class_labels):
         class_true = []
@@ -76,8 +79,12 @@ def plot_calibration_curve(true_labels_csv, predictions_csv, n_bins=10):
         # Calculate calibration curve for the class
         prob_true, prob_pred = calibration_curve(class_true, class_pred, n_bins=n_bins, strategy='uniform')
         
+        # Calculate Brier score for each class
+        brier_score = brier_score_loss(class_true, class_pred)
+        brier_scores[class_name] = brier_score
+        
         # Plot calibration curve for the class with a fixed color
-        plt.plot(prob_pred, prob_true, marker='o', label=class_name, color=color_map.get(class_name, 'gray'))
+        plt.plot(prob_pred, prob_true, marker='o', label=f"{class_name} (Brier: {brier_score:.3f})", color=color_map.get(class_name, 'gray'))
     
     # Plot the diagonal for perfect calibration
     plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly Calibrated")
@@ -102,8 +109,11 @@ def plot_calibration_curve(true_labels_csv, predictions_csv, n_bins=10):
     # Calculate overall calibration curve
     prob_true, prob_pred = calibration_curve(all_true_labels, all_pred_probs, n_bins=n_bins, strategy='uniform')
     
+    # Calculate overall Brier score
+    overall_brier_score = brier_score_loss(all_true_labels, all_pred_probs)
+    
     # Plot overall calibration curve
-    plt.plot(prob_pred, prob_true, marker='o', linestyle='--', color='black', label='Overall Calibration')
+    plt.plot(prob_pred, prob_true, marker='o', linestyle='--', color='black', label=f'Overall Calibration (Brier: {overall_brier_score:.3f})')
     
     # Plot the diagonal for perfect calibration
     plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly Calibrated")
@@ -112,6 +122,9 @@ def plot_calibration_curve(true_labels_csv, predictions_csv, n_bins=10):
     plt.xlabel("Mean Predicted Probability")
     plt.ylabel("True Frequency")
     plt.title("Overall Calibration Plot - HPA Original Model")
+    
+    # Add Brier score as a text annotation below the plot
+    plt.figtext(0.5, -0.05, f"Overall Brier Score: {overall_brier_score:.3f}", ha="center", fontsize=12)
     plt.legend(loc="best")
     
     # Save the overall plot
