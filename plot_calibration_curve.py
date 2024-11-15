@@ -8,11 +8,11 @@ import os
 def extract_true_labels(true_labels_csv):
     """Extract true labels for each protein and format as a binary array for each class."""
     true_df = pd.read_csv(true_labels_csv)
-    class_columns = true_df.columns[1:-2]  # Exclude 'sid', 'Lengths', and 'fasta' columns
+    class_columns = true_df.columns[5:-1]  # Exclude 'sid', 'Lengths', and 'fasta' columns
 
     true_labels_dict = {}
     for _, row in true_df.iterrows():
-        protein_id = row['sid']
+        protein_id = row['ACC']
         true_locations = [1 if row[class_name] == 1 else 0 for class_name in class_columns]
         true_labels_dict[protein_id] = true_locations
 
@@ -92,11 +92,11 @@ def plot_calibration_curve(true_labels_csv, predictions_csv, n_bins=10):
     # Set plot labels and title for class-specific plot
     plt.xlabel("Mean Predicted Probability")
     plt.ylabel("True Frequency")
-    plt.title("Calibration Plot for Each Class - HPA Original Model")
+    plt.title("Calibration Plot for Each Class - swissprot Original Model - Accurate")
     plt.legend(loc="best")
     
     # Save the class-specific plot
-    class_plot_path = os.path.join('.', "original_model_calibration_plot_classes_hpa_testset.png")
+    class_plot_path = os.path.join('.', "original_model_calibration_plot_classes_swissprot_testset_accurate.png")
     plt.tight_layout()
     plt.savefig(class_plot_path)
     plt.close()
@@ -121,20 +121,20 @@ def plot_calibration_curve(true_labels_csv, predictions_csv, n_bins=10):
     # Set plot labels and title for overall plot
     plt.xlabel("Mean Predicted Probability")
     plt.ylabel("True Frequency")
-    plt.title("Overall Calibration Plot - HPA Original Model")
+    plt.title("Overall Calibration Plot - swissprot Original Model - Accurate")
     
     # Add Brier score as a text annotation below the plot
     plt.figtext(0.5, -0.05, f"Overall Brier Score: {overall_brier_score:.3f}", ha="center", fontsize=12)
     plt.legend(loc="best")
     
     # Save the overall plot
-    overall_plot_path = os.path.join('.', "original_model_calibration_plot_overall_hpa_testset.png")
+    overall_plot_path = os.path.join('.', "original_model_calibration_plot_overall_swissprot_testset_accurate.png")
     plt.tight_layout()
     plt.savefig(overall_plot_path)
     plt.close()
     
     print(f"Overall calibration plot saved to {overall_plot_path}")
 
-true_data = 'hpa_testset.csv'
-prediction_data = 'outputs/results_hpa_testset_20240620_013643.csv/results_20240619-204146.csv'
+true_data = 'data_files/multisub_5_partitions_unique.csv'
+prediction_data = 'results_deeploc_swissprot_clipped4K.csv'
 plot_calibration_curve(true_data, prediction_data)
