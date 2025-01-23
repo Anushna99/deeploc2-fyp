@@ -46,6 +46,15 @@ def predict_sl_values(dataloader, model, outputs_save_path, outer_i, inner_i):
     annot_df = pd.DataFrame(annot_dict.items(), columns=['ACC', 'pred_annot'])
     pool_df = pd.DataFrame(pool_dict.items(), columns=['ACC', 'embeds'])
 
+    # # Expand the 'preds' list into individual category columns
+    # preds_expanded = pd.DataFrame(output_df['preds'].tolist(), columns=CATEGORIES)
+    # output_df = pd.concat([output_df[['ACC']], preds_expanded], axis=1)
+
+    # # Save the DataFrame to a CSV file
+    # output_csv_path = f"{outputs_save_path}/model_{outer_i}_results.csv"
+    # output_df.to_csv(output_csv_path, index=False)
+    # print(f"Saved output to {output_csv_path}")
+
     return output_df.merge(annot_df).merge(pool_df)
 
 def predict_sl_outputs(dataloader, model, outputs_save_path, outer_i, inner_i):

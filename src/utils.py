@@ -78,8 +78,8 @@ def get_train_model_attributes(model_type):
             alphabet,
             EMBEDDINGS[FAST]["embeds"],
             "swissprot",
-            "models/models_esm1b",
-            "outputs/esm1b/",
+            "models/models_esm1b/ensemble_4",
+            "outputs/esm1b/ensemble_4",
             1022,
             1280
         )

@@ -117,7 +117,7 @@ def get_optimal_threshold_mcc(output_df, data_df):
 
     return optimal_thresholds
 
-def calculate_sl_metrics_fold(test_df, thresholds):
+def calculate_sl_metrics_fold(test_df, thresholds, outer_i, outputs_save_path):
     print("Computing fold")
     predictions = np.stack(test_df["preds"].to_numpy())
     outputs = predictions>thresholds
@@ -135,12 +135,16 @@ def calculate_sl_metrics_fold(test_df, thresholds):
 
     # Combine all into a single DataFrame
     combined_df = pd.concat([test_df[['ACC']], preds_df, outputs_df, actuals_df], axis=1)
-
     # Rename columns for clarity
     combined_df.columns = ['ACC'] + \
                           [f'pred_{col}' for col in preds_df.columns] + \
                           [f'pred_loc_{col}' for col in preds_df.columns] + \
                           [f'true_loc_{col}' for col in preds_df.columns]
+
+    # # Save the DataFrame to a CSV file
+    output_csv_path = f"{outputs_save_path}/model_{outer_i}_results.csv"
+    combined_df.to_csv(output_csv_path, index=False)
+    print(f"Saved output to {output_csv_path}")
 
     ypred_membrane = outputs[:, 0]
     ypred_subloc = outputs[:,1:]
@@ -193,7 +197,7 @@ def calculate_sl_metrics(model_attrs: ModelAttributes, datahandler: DataloaderHa
         threshold = threshold_dict[f"{outer_i}_{inner_i}"]
         
         # Calculate SL metrics for the current fold using the merged data and threshold
-        metrics_dict, combined_df = calculate_sl_metrics_fold(data_df, threshold)
+        metrics_dict, combined_df = calculate_sl_metrics_fold(data_df, threshold, outer_i, model_attrs.outputs_save_path)
 
         # Save the combined DataFrame as a CSV file
         # current_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
