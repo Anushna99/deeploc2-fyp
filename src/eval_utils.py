@@ -32,6 +32,7 @@ def predict_sl_values(dataloader, model, outputs_save_path, outer_i, inner_i):
             # y_attn: Attention weights or scores, though not used further in this function.
             y_pred, y_pool, y_attn = model.predict(toks.to(device), lengths.to(device), np_mask.to(device))
         x = torch.sigmoid(y_pred).float().cpu().numpy() # Applies the sigmoid function to y_pred, converting raw logits to probabilities between 0 and 1.
+        print(f"Batch {i}: x (predicted probabilities) = \n{x}")
         for j in range(len(labels)):
             if len(labels) == 1:
                 output_dict[labels[j]] = x
@@ -70,6 +71,7 @@ def predict_sl_outputs(dataloader, model, outputs_save_path, outer_i, inner_i):
             # y_attn: Attention weights or scores, though not used further in this function.
             y_pred, y_pool, y_attn = model.predict(toks.to(device), lengths.to(device), np_mask.to(device))
         x = torch.sigmoid(y_pred).float().cpu().numpy() # Applies the sigmoid function to y_pred, converting raw logits to probabilities between 0 and 1.
+        print(f"Batch {i}: x (predicted probabilities) = \n{x}")
         for j in range(len(labels)):
             if len(labels) == 1:
                 output_dict[labels[j]] = x
@@ -128,6 +130,7 @@ def generate_sl_outputs(
             pred_df = predict_sl_values(dataloader, model, model_attrs.outputs_save_path, outer_i, inner_i)
             # save the file for laterr
             pred_df.to_pickle(os.path.join(model_attrs.outputs_save_path, f"inner_{outer_i}_{inner_i}.pkl"))
+        
         else:
             pred_df = pd.read_pickle(os.path.join(model_attrs.outputs_save_path, f"inner_{outer_i}_{inner_i}.pkl"))
 
@@ -162,40 +165,40 @@ def generate_sl_outputs(
     with open(os.path.join(model_attrs.outputs_save_path, f"thresholds_sl_{thresh_type}.pkl"), "wb") as f:
         pickle.dump(threshold_dict, f)
 
-def predict_ss_values(X, model):
-    X_tensor = torch.tensor(X, device=device).float()
-    y_preds = torch.sigmoid(model(X_tensor))
-    return y_preds.detach().cpu().numpy()
+# def predict_ss_values(X, model):
+#     X_tensor = torch.tensor(X, device=device).float()
+#     y_preds = torch.sigmoid(model(X_tensor))
+#     return y_preds.detach().cpu().numpy()
 
-def generate_ss_outputs(
-        model_attrs: ModelAttributes, 
-        datahandler: DataloaderHandler, 
-        thresh_type="mcc", 
-        inner_i="1Layer", 
-        reuse=False):
+# def generate_ss_outputs(
+#         model_attrs: ModelAttributes, 
+#         datahandler: DataloaderHandler, 
+#         thresh_type="mcc", 
+#         inner_i="1Layer", 
+#         reuse=False):
     
-    threshold_dict = {}
-    if not os.path.exists(f"{model_attrs.outputs_save_path}"):
-        os.makedirs(f"{model_attrs.outputs_save_path}")
-    for outer_i in range(5):
-        print("Generating output for ensemble model", outer_i)
-        X_train, y_train, X_test, y_test = datahandler.get_swissprot_ss_xy(model_attrs.outputs_save_path, outer_i)
-        path = f"{model_attrs.save_path}/signaltype/{outer_i}.ckpt"
-        model = SignalTypeMLP.load_from_checkpoint(path).to(device).eval()
+#     threshold_dict = {}
+#     if not os.path.exists(f"{model_attrs.outputs_save_path}"):
+#         os.makedirs(f"{model_attrs.outputs_save_path}")
+#     for outer_i in range(5):
+#         print("Generating output for ensemble model", outer_i)
+#         X_train, y_train, X_test, y_test = datahandler.get_swissprot_ss_xy(model_attrs.outputs_save_path, outer_i)
+#         path = f"{model_attrs.save_path}/signaltype/{outer_i}.ckpt"
+#         model = SignalTypeMLP.load_from_checkpoint(path).to(device).eval()
         
-        y_train_preds = predict_ss_values(X_train, model)
-        thresh = np.zeros((9,))
-        threshold_dict = {}
-        #print("thresholds")
-        for type_i in range(9):
-            thresh[type_i] = get_best_threshold_mcc(y_train[:, type_i], y_train_preds[:, type_i])
-            threshold_dict[SS_CATEGORIES[type_i+1]] = thresh[type_i]
-            #print(SS_CATEGORIES[type_i+1], thresh[type_i])
-        y_test_preds = predict_ss_values(X_test, model)
-        pickle.dump(y_test_preds, open(f"{model_attrs.outputs_save_path}/ss_{outer_i}.pkl", "wb"))
+#         y_train_preds = predict_ss_values(X_train, model)
+#         thresh = np.zeros((9,))
+#         threshold_dict = {}
+#         #print("thresholds")
+#         for type_i in range(9):
+#             thresh[type_i] = get_best_threshold_mcc(y_train[:, type_i], y_train_preds[:, type_i])
+#             threshold_dict[SS_CATEGORIES[type_i+1]] = thresh[type_i]
+#             #print(SS_CATEGORIES[type_i+1], thresh[type_i])
+#         y_test_preds = predict_ss_values(X_test, model)
+#         pickle.dump(y_test_preds, open(f"{model_attrs.outputs_save_path}/ss_{outer_i}.pkl", "wb"))
 
-    with open(os.path.join(model_attrs.outputs_save_path, f"thresholds_ss_mcc.pkl"), "wb") as f:
-        pickle.dump(threshold_dict, f)
+    # with open(os.path.join(model_attrs.outputs_save_path, f"thresholds_ss_mcc.pkl"), "wb") as f:
+    #     pickle.dump(threshold_dict, f)
 
 def generate_sl_predictions(
         model_attrs: ModelAttributes, 

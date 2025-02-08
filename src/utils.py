@@ -78,8 +78,8 @@ def get_train_model_attributes(model_type):
             alphabet,
             EMBEDDINGS[FAST]["embeds"],
             "swissprot",
-            "models/models_esm1b/ensemble_4",
-            "outputs/esm1b/ensemble_4",
+            "models/models_esm1b/rejector2",
+            "outputs/esm1b/rejector2",
             1022,
             1280
         )
@@ -499,7 +499,8 @@ def plot_combined_calibration_curve(data_df, output_folder, n_bins=10):
         'Endoplasmic reticulum': 'teal',
         'Lysosome/Vacuole': 'slategray',
         'Golgi apparatus': 'mediumvioletred',
-        'Peroxisome': 'gold'
+        'Peroxisome': 'gold',
+        'Rejector': 'red'
     }
     
     class_labels = list(color_map.keys())  # Define class labels based on color map keys

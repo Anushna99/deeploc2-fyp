@@ -73,7 +73,7 @@ def get_optimal_threshold(output_df, data_df):
     predictions = np.stack(test_df["preds"].to_numpy())
     actuals = np.stack(test_df["Target"].to_numpy())
     
-    optimal_thresholds = np.zeros((11,))
+    optimal_thresholds = np.zeros((12,))
     for i in range(11):
         fpr, tpr, thresholds = metrics.roc_curve(actuals[:, i], predictions[:, i])
         optimal_idx = np.argmax(tpr - fpr)
@@ -92,7 +92,7 @@ def get_optimal_threshold_pr(output_df, data_df):
     actuals = np.stack(test_df["Target"].to_numpy())
     
     optimal_thresholds = np.zeros((11,))
-    for i in range(11):
+    for i in range(12):
         pr, re, thresholds = metrics.precision_recall_curve(actuals[:, i], predictions[:, i])
         fscores = (2 * pr * re) / (pr + re)
         optimal_idx = np.argmax(fscores)
@@ -111,7 +111,7 @@ def get_optimal_threshold_mcc(output_df, data_df):
     predictions = np.stack(test_df["preds"].to_numpy())
     actuals = np.stack(test_df["Target"].to_numpy())
     
-    optimal_thresholds = np.zeros((11,))
+    optimal_thresholds = np.zeros((12,))
     for i in range(11):
         optimal_thresholds[i] = get_best_threshold_mcc(actuals[:, i], predictions[:, i])
 
@@ -123,12 +123,32 @@ def calculate_sl_metrics_fold(test_df, thresholds, outer_i, outputs_save_path):
     outputs = predictions>thresholds
     actuals = np.stack(test_df["Target"].to_numpy())
 
+      # Convert predictions and actuals to DataFrame
+    preds_df = pd.DataFrame(predictions, columns=[f"pred_{i}" for i in range(predictions.shape[1])])
+    actuals_df = pd.DataFrame(actuals, columns=[f"actual_{i}" for i in range(actuals.shape[1])])
+
+    # Combine into a single DataFrame
+    results_df = pd.concat([preds_df, actuals_df], axis=1)
+
+    # Define file path
+    preds_actuals_csv_path = os.path.join(outputs_save_path, f"batman_predictions_actuals_fold_{outer_i}.csv")
+
+    # Save to CSV
+    results_df.to_csv(preds_actuals_csv_path, index=False)
+  
+
+
     # Convert predictions, outputs, and actuals back to DataFrames
     preds_df = pd.DataFrame(predictions, columns=[
         'Membrane', 'Cytoplasm', 'Nucleus', 'Extracellular', 'Cell membrane',
         'Mitochondrion', 'Plastid', 'Endoplasmic reticulum', 'Lysosome/Vacuole',
-        'Golgi apparatus', 'Peroxisome'
+        'Golgi apparatus', 'Peroxisome', 'rejector'
     ])
+    print(f"Shape of actuals array: {actuals.shape}")
+
+    if actuals.shape[1] < len(preds_df.columns):
+        missing_cols = len(preds_df.columns) - actuals.shape[1]
+        actuals = np.hstack([actuals, np.zeros((actuals.shape[0], missing_cols))])
 
     outputs_df = pd.DataFrame(outputs, columns=preds_df.columns)
     actuals_df = pd.DataFrame(actuals, columns=preds_df.columns)
@@ -186,10 +206,14 @@ def calculate_sl_metrics(model_attrs: ModelAttributes, datahandler: DataloaderHa
         
         # Load the corresponding SL output predictions
         output_df = pd.read_pickle(os.path.join(model_attrs.outputs_save_path, f"{outer_i}_{inner_i}.pkl"))
-        
+      
+        # Save output_df to a CSV file
+        output_csv_path = os.path.join(model_attrs.outputs_save_path, f"{outer_i}_{inner_i}_output_df.csv")
+        output_df.to_csv(output_csv_path, index=False)
         # Merge the data partition with the SL predictions
         data_df = data_df.merge(output_df)
-        
+        merged_data_df_csv_path = os.path.join(model_attrs.outputs_save_path, f"fold_{outer_i}_merged_data_df.csv")
+        data_df.to_csv(merged_data_df_csv_path, index=False)
         # Append the merged data frame to the list of full data
         full_data_df.append(data_df)
         
@@ -232,38 +256,39 @@ def calculate_sl_metrics(model_attrs: ModelAttributes, datahandler: DataloaderHa
         print("{0}".format(f"{round(np.array(metrics_dict_list[k]).mean(), 2):.2f} + {round(np.array(metrics_dict_list[k]).std(), 2):.2f}"))
 
 
-def calculate_ss_metrics_fold(y_test, y_test_preds, thresh):
-    y_preds = y_test_preds > thresh
+# def calculate_ss_metrics_fold(y_test, y_test_preds, thresh):
+#     y_preds = y_test_preds > thresh
 
-    metrics_dict = {}
+#     metrics_dict = {}
 
-    metrics_dict["microF1"] = f1_score(y_test, y_preds, average="micro")
-    metrics_dict["macroF1"] = f1_score(y_test, y_preds, average="macro")
-    metrics_dict["accuracy"] = (np.all((y_preds == y_test), axis=1)).mean()
+#     metrics_dict["microF1"] = f1_score(y_test, y_preds, average="micro")
+#     metrics_dict["macroF1"] = f1_score(y_test, y_preds, average="macro")
+#     metrics_dict["accuracy"] = (np.all((y_preds == y_test), axis=1)).mean()
 
-    for j in range(len(SS_CATEGORIES)-1):
-        metrics_dict[f"{SS_CATEGORIES[j+1]}"]  = matthews_corrcoef(y_preds[:, j],y_test[:, j])
+#     for j in range(len(SS_CATEGORIES)-1):
+#         metrics_dict[f"{SS_CATEGORIES[j+1]}"]  = matthews_corrcoef(y_preds[:, j],y_test[:, j])
 
-    return metrics_dict
+#     return metrics_dict
 
-def calculate_ss_metrics(model_attrs: ModelAttributes, datahandler: DataloaderHandler, thresh_type="mcc"):
-    with open(os.path.join(model_attrs.outputs_save_path, f"thresholds_ss_{thresh_type}.pkl"), "rb") as f:
-        threshold_dict = pickle.load(f)
-    # print(np.array(list(threshold_dict.values())).mean(0))
-    metrics_dict_list = {}
-    thresh = np.array([threshold_dict[k] for k in SS_CATEGORIES[1:]])
+# def calculate_ss_metrics(model_attrs: ModelAttributes, datahandler: DataloaderHandler, thresh_type="mcc"):
+#     with open(os.path.join(model_attrs.outputs_save_path, f"thresholds_ss_{thresh_type}.pkl"), "rb") as f:
+#         threshold_dict = pickle.load(f)
+#     # print(np.array(list(threshold_dict.values())).mean(0))
+#     metrics_dict_list = {}
+#     thresh = np.array([threshold_dict[k] for k in SS_CATEGORIES[1:]])
     
-    for outer_i in range(5):
-        _,_,_, y_test = datahandler.get_swissprot_ss_xy(model_attrs.outputs_save_path, outer_i)
-        y_test_preds = pickle.load(open(f"{model_attrs.outputs_save_path}/ss_{outer_i}.pkl", "rb"))
-        metrics_dict = calculate_ss_metrics_fold(y_test, y_test_preds, thresh)
-        for k in metrics_dict:
-            metrics_dict_list.setdefault(k, []).append(metrics_dict[k])
+#     for outer_i in range(5):
+#         _,_,_, y_test = datahandler.get_swissprot_ss_xy(model_attrs.outputs_save_path, outer_i)
+#         y_test_preds = pickle.load(open(f"{model_attrs.outputs_save_path}/ss_{outer_i}.pkl", "rb"))
+#         print(f"y_test_preds for fold {outer_i}: {y_test_preds}")
+#         metrics_dict = calculate_ss_metrics_fold(y_test, y_test_preds, thresh)
+#         for k in metrics_dict:
+#             metrics_dict_list.setdefault(k, []).append(metrics_dict[k])
 
-    output_dict = {}
-    for k in metrics_dict_list:
-        output_dict[k] = [f"{round(np.array(metrics_dict_list[k]).mean(), 2):.2f} pm {round(np.array(metrics_dict_list[k]).std(), 2):.2f}"]
-    print(pd.DataFrame(output_dict).to_latex())
+#     output_dict = {}
+#     for k in metrics_dict_list:
+#         output_dict[k] = [f"{round(np.array(metrics_dict_list[k]).mean(), 2):.2f} pm {round(np.array(metrics_dict_list[k]).std(), 2):.2f}"]
+#     print(pd.DataFrame(output_dict).to_latex())
 
 def save_protein_predictions_to_csv(model_attrs, datahandler, inner_i="1Layer"):
     full_data_df = []
