@@ -36,6 +36,7 @@ SIGNAL_DATA = "data_files/multisub_ninesignals.pkl"
 LOCALIZATION_DATA = "./data_files/multisub_5_partitions_unique.csv"
 
 # hyper parameters that can change
+<<<<<<< Updated upstream
 BATCH_SIZE = 256 
 SUP_LOSS_MULT = 0.01
 REG_LOSS_MULT = 0.01
@@ -43,3 +44,12 @@ REG_LOSS_MULT = 0.01
 batch_sizes = [64, 128, 256] 
 sup_loss_mults = [0.05, 0.1, 0.2]
 reg_loss_mults = [0.05, 0.1, 0.2]
+=======
+# BATCH_SIZE = 128 
+# SUP_LOSS_MULT = 0.1
+# REG_LOSS_MULT = 0.1
+
+BATCH_SIZE = 256
+SUP_LOSS_MULT = 0.01
+REG_LOSS_MULT = 0.01
+>>>>>>> Stashed changes

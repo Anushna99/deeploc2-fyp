@@ -203,8 +203,16 @@ def generate_sl_predictions(
         # this load the same test sets each time that used for trainnng the model
         dataloader = datahandler.get_test_dataloader(model_attrs)
         if not os.path.exists(os.path.join(model_attrs.outputs_save_path, f"inner_{outer_i}_{inner_i}.pkl")):
+<<<<<<< Updated upstream
             # path to the model i trained checkpoint
             model_attrs.save_path = 'models/models_esm1b'
+=======
+            # # path to the model i trained checkpoint
+            # if (model_attrs.model_type == FAST):
+            #     model_attrs.save_path = 'models/models_esm1b/B256_R1_S1'
+            # else:
+            #     model_attrs.save_path = 'models/models_prott5'
+>>>>>>> Stashed changes
             path = f"{model_attrs.save_path}/{outer_i}_{inner_i}.ckpt"
             # evaluate from that checkpoint
             model = model_attrs.class_type.load_from_checkpoint(path).to(device).eval()

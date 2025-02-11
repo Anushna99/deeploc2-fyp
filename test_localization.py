@@ -28,7 +28,8 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    model_attrs = get_test_model_attributes(model_type=args.model, data=args.dataset)
+    suffix = format_suffix(BATCH_SIZE, REG_LOSS_MULT, SUP_LOSS_MULT)
+    model_attrs = get_test_model_attributes(model_type=args.model, data=args.dataset, suffix=suffix)
     print("All Model Attributes:")
     print(vars(model_attrs))
     if not os.path.exists(model_attrs.embedding_file):

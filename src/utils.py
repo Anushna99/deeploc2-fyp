@@ -62,7 +62,7 @@ class ModelAttributes:
         self.embed_len = embed_len
         
 
-def get_train_model_attributes(model_type):
+def get_train_model_attributes(model_type, suffix):
     '''
     This function returns an instance of ModelAttributes based on the specified model_type.
     '''
@@ -78,8 +78,13 @@ def get_train_model_attributes(model_type):
             alphabet,
             EMBEDDINGS[FAST]["embeds"],
             "swissprot",
+<<<<<<< Updated upstream
             "models/models_esm1b",
             "outputs/esm1b/",
+=======
+            f"models/models_esm1b/{suffix}",
+            f"outputs/esm1b/{suffix}",
+>>>>>>> Stashed changes
             1022,
             1280
         )
@@ -92,15 +97,15 @@ def get_train_model_attributes(model_type):
             alphabet,
             EMBEDDINGS[ACCURATE]["embeds"], 
             "swissprot",           
-            "models/models_prott5",
-            "outputs/prott5/",
+            f"models/models_prott5/{suffix}",
+            f"outputs/prott5/{suffix}",
             4000,
             1024
         )
     else:
         raise Exception("wrong model type provided expected Fast,Accurate got", model_type)
     
-def get_test_model_attributes(model_type, data):
+def get_test_model_attributes(model_type, data, suffix):
     '''
     New function specifically for testing, supporting both SwissProt and HPA datasets.
     '''
@@ -111,13 +116,13 @@ def get_test_model_attributes(model_type, data):
         # Switch between SwissProt and HPA embeddings for Fast model
         if data == "swissprot":
             embedding_file = EMBEDDINGS[FAST]["embeds"]
-            save_path = "models/models_test_swissprot_esm1b"
-            outputs_save_path = "outputs/test_swissprot_esm1b/"
+            save_path = f"models/models_esm1b/{suffix}"
+            outputs_save_path = f"outputs/test_swissprot_esm1b/{suffix}"
             dataset = data
         elif data == "hpa":
             embedding_file = EMBEDDINGS[TEST_ESM]["embeds"]
-            save_path = "models/models_test_hpa_esm1b"
-            outputs_save_path = "outputs/test_hpa_esm1b/"
+            save_path = f"models/models_esm1b/{suffix}"
+            outputs_save_path = f"outputs/test_hpa_esm1b/{suffix}"
             dataset = data
         else:
             raise ValueError(f"Unknown dataset: {dataset}")
@@ -140,13 +145,13 @@ def get_test_model_attributes(model_type, data):
         # Switch between SwissProt and HPA embeddings for Accurate model
         if data == "swissprot":
             embedding_file = EMBEDDINGS[ACCURATE]["embeds"]
-            save_path = "models/models_test_swissprot_prott5"
-            outputs_save_path = "outputs/test_swissprot_prott5/"
+            save_path = f"models/models_prott5/{suffix}"
+            outputs_save_path = f"outputs/test_swissprot_prott5/{suffix}"
             dataset = data
         elif data == "hpa":
             embedding_file = EMBEDDINGS[TEST_PROTT5]["embeds"]
-            save_path = "models/models_test_hpa_prott5"
-            outputs_save_path = "outputs/test_hpa_prott5/"
+            save_path = f"models/models_prott5/{suffix}"
+            outputs_save_path = f"outputs/test_hpa_prott5/{suffix}"
             dataset = data
         else:
             raise ValueError(f"Unknown dataset: {dataset}")
@@ -280,7 +285,10 @@ def plot_variance_distribution(df, output_folder):
         # Replace '/' with '_' in column name for file name safety
         safe_column_name = column.replace("/", "_")
         output_path = os.path.join(graphs_folder, f'{safe_column_name}_variance_distribution_{suffix}.png')
+<<<<<<< Updated upstream
         plt.tight_layout(rect=[0, 0, 1, 0.95]) 
+=======
+>>>>>>> Stashed changes
         plt.savefig(output_path)
         plt.close()
         print(f'Saved variance distribution plot for {column} at {output_path}')
@@ -292,6 +300,7 @@ def plot_variance_distribution(df, output_folder):
         variance_stats.to_csv(f, index=False)
 
     print(f"Variance statistics saved to {stats_csv_path}")
+
 
 esm1b_label_thresholds = np.array([0.45380859, 0.46953125, 0.52753906, 0.64638672, 
                             0.52368164, 0.63730469, 0.65859375, 0.62783203, 

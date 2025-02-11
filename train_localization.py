@@ -84,8 +84,8 @@ if __name__ == "__main__":
         help="Model to use."
     )
     args = parser.parse_args()
-
-    model_attrs = get_train_model_attributes(model_type=args.model) # fetching model attributes according to the user iinput
+    suffix = format_suffix(BATCH_SIZE, REG_LOSS_MULT, SUP_LOSS_MULT)
+    model_attrs = get_train_model_attributes(model_type=args.model, suffix=suffix) # fetching model attributes according to the user iinput
     print("All Model Attributes:")
     print(vars(model_attrs))
 
@@ -115,10 +115,10 @@ if __name__ == "__main__":
             train_model(model_attrs, datahandler, i)
     print("Finished training subcellular localization models")
 
-    print("Using trained models to generate outputs for signal prediction training")
-    generate_sl_outputs(model_attrs=model_attrs, datahandler=datahandler)
-    print("Generated outputs! Can train sorting signal prediction now")
+    # print("Using trained models to generate outputs for signal prediction training")
+    # generate_sl_outputs(model_attrs=model_attrs, datahandler=datahandler)
+    # print("Generated outputs! Can train sorting signal prediction now")
 
 
-    print("Computing subcellular localization performance on swissprot CV dataset")
-    calculate_sl_metrics(model_attrs=model_attrs, datahandler=datahandler)
+    # print("Computing subcellular localization performance on swissprot CV dataset")
+    # calculate_sl_metrics(model_attrs=model_attrs, datahandler=datahandler)
