@@ -78,13 +78,8 @@ def get_train_model_attributes(model_type, suffix):
             alphabet,
             EMBEDDINGS[FAST]["embeds"],
             "swissprot",
-<<<<<<< Updated upstream
-            "models/models_esm1b",
-            "outputs/esm1b/",
-=======
             f"models/models_esm1b/{suffix}",
             f"outputs/esm1b/{suffix}",
->>>>>>> Stashed changes
             1022,
             1280
         )
@@ -285,10 +280,6 @@ def plot_variance_distribution(df, output_folder):
         # Replace '/' with '_' in column name for file name safety
         safe_column_name = column.replace("/", "_")
         output_path = os.path.join(graphs_folder, f'{safe_column_name}_variance_distribution_{suffix}.png')
-<<<<<<< Updated upstream
-        plt.tight_layout(rect=[0, 0, 1, 0.95]) 
-=======
->>>>>>> Stashed changes
         plt.savefig(output_path)
         plt.close()
         print(f'Saved variance distribution plot for {column} at {output_path}')
@@ -305,7 +296,7 @@ def plot_variance_distribution(df, output_folder):
 esm1b_label_thresholds = np.array([0.45380859, 0.46953125, 0.52753906, 0.64638672, 
                             0.52368164, 0.63730469, 0.65859375, 0.62783203, 
                             0.56484375, 0.66777344, 0.71679688])
-prott5_label_threshold = np.array([0.45717773, 0.47612305, 0.50136719, 0.61728516, 0.56464844, 
+prott5_label_thresholds = np.array([0.45717773, 0.47612305, 0.50136719, 0.61728516, 0.56464844, 
                                    0.62197266, 0.63945312, 0.60898438, 0.58476562, 0.64941406, 0.73642578])
 class_labels = CATEGORIES
 
@@ -336,7 +327,65 @@ def extract_true_labels(true_labels_csv):
     
     return true_labels_dict
 
-def get_binary_predictions(merged_df, output_folder, label_thresholds=esm1b_label_thresholds, true_labels_csv='/home/pasindumadusha_20/deeploc2-fyp/hpa_testset.csv'):
+def get_binary_predictions_for_single_model(merged_df_csv, output_folder, true_labels_csv, model):
+    """
+    Process the predictions CSV, apply thresholds for each class, and save results with predicted and true labels.
+    """
+    if (model == 'Fast'):
+        label_thresholds=esm1b_label_thresholds
+    else:
+        label_thresholds=prott5_label_thresholds
+    # Load the merged predictions file
+    merged_df = pd.read_csv(merged_df_csv)
+    
+    # Initialize a list to store the final results with the desired structure
+    results = []
+
+    # Loop over each row to apply thresholds and determine predicted labels
+    for idx, row in merged_df.iterrows():
+        acc = row["ACC"]
+        row_data = {"ACC": acc}  # Initialize row data with ACC 
+        
+        # Initialize a list to store the predicted classes
+        predicted_labels = []
+
+        # Loop over each class to apply threshold and get prediction values directly
+        for i, class_name in enumerate(class_labels):
+            # Get the prediction value for the current class
+            prediction_value = row[class_name]
+            row_data[class_name] = prediction_value  # Add prediction value to the row
+            
+            # Apply threshold to decide if this class is predicted
+            if prediction_value >= label_thresholds[i]:
+                predicted_labels.append(class_name)
+        
+        # Join predicted class names with commas and store them in `predicted_label`
+        row_data["predicted_label"] = ", ".join(predicted_labels) if predicted_labels else "None"
+        
+        # Append the row data to the results list
+        results.append(row_data)
+
+    # Convert the results list to a DataFrame
+    binary_df = pd.DataFrame(results)
+
+    print(binary_df.head(10))  # Display the first 10 rows for verification
+    
+    # Extract true labels from the CSV
+    true_labels_dict = extract_true_labels(true_labels_csv)
+
+    # Map the true labels to the binary_df based on the ACC column
+    binary_df['true_label'] = binary_df['ACC'].map(true_labels_dict)
+
+    print(binary_df.head(10))
+
+    # Save the output with predictions and true labels
+    output_path = os.path.join(output_folder, "predictions_with_true_labels.csv")
+    binary_df.to_csv(output_path, index=False)
+    print(f"Binary predictions with true labels saved to: {output_path}")
+
+    return binary_df
+
+def get_binary_predictions(merged_df, output_folder, label_thresholds=esm1b_label_thresholds, true_labels_csv='/home/cseroot/pasindumadusha.20/deeploc2-fyp/hpa_testset.csv'):
     # Initialize a list to store the final results with the desired structure
     results = []
 
