@@ -1,0 +1,11 @@
+Metric,Value
+Subset Accuracy,0.8582677165354331
+Jaccard,0.9199475065616798
+MicroF1,0.9202898550724637
+MacroF1,0.36533333333333334
+MCC_Cytoplasm,0.14609113377934735
+MCC_Nucleus,0.5727497953228163
+MCC_Cell membrane,0.0
+MCC_Mitochondrion,1.0
+MCC_Endoplasmic reticulum,0.0
+MCC_Golgi apparatus,0.0

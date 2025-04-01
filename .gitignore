@@ -16,9 +16,15 @@ DeepLoc2.egg-info/
 # Ignore data_files
 data_files/embeddings
 
-# Ignore large output files
-outputs/esm1b
-outputs/prott5
+# Ignore everything under esm1b
+outputs/esm1b/**/*
+# But not .csv files inside any subfolder of esm1b
+!outputs/esm1b/**/*.csv
+
+# Ignore everything under prott5
+outputs/prott5/**/*
+# But not .csv files inside any subfolder of prott5
+!outputs/prott5/**/*.csv
 
 # Ignore pycache
 src/__pycache__/

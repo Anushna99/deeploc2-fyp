@@ -8,7 +8,7 @@ import os
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, jaccard_score, f1_score, matthews_corrcoef
 from sklearn.calibration import calibration_curve
-import itertools
+from sklearn.metrics import brier_score_loss
 
 class ModelAttributes:
     '''
@@ -321,11 +321,66 @@ def extract_true_labels(true_labels_csv):
     
     # Iterate over each row and extract true labels based on binary values
     for _, row in true_df.iterrows():
-        acc = row['sid']
+        identifier_column = 'sid' if 'sid' in row else 'ACC'
+        acc = row[identifier_column]
         true_locations = [class_columns[i] for i, val in enumerate(row[class_columns]) if val == 1]
         true_labels_dict[acc] = ', '.join(true_locations) if true_locations else "None"
     
     return true_labels_dict
+
+def get_binary_predictions(merged_df, output_folder, true_labels_csv, model):
+    '''
+    combine predictions with true values for each sequence and save to a csv file.
+    '''
+    if (model == 'Fast'):
+        label_thresholds=esm1b_label_thresholds
+    else:
+        label_thresholds=prott5_label_thresholds
+    # Initialize a list to store the final results with the desired structure
+    results = []
+
+    # Loop over each row to calculate mean values and predicted labels
+    for idx, row in merged_df.iterrows():
+        acc = row["ACC"]
+        row_data = {"ACC": acc}  # Initialize row data with ACC
+        
+        # Initialize a list to store the predicted classes
+        predicted_labels = []
+
+        # Loop over each class to apply threshold and extract mean values
+        for i, class_name in enumerate(class_labels):
+            # Calculate mean prediction value for the current class
+            mean_value = np.mean([float(val) for val in row[class_name].split(" mean: ")[0][1:-1].split(",")])
+            row_data[class_name] = mean_value  # Add mean value to the row
+            
+            # Apply threshold to decide if this class is predicted
+            if mean_value >= label_thresholds[i]:
+                predicted_labels.append(class_name)
+        
+        # Join predicted class names with commas and store them in `predicted_label`
+        row_data["predicted_label"] = ", ".join(predicted_labels) if predicted_labels else "None"
+        
+        # Append the row data to the results list
+        results.append(row_data)
+
+    # Convert the results list to a DataFrame
+    binary_df = pd.DataFrame(results)
+
+    print(binary_df.head(10))  # Display the first 10 rows for verification
+    
+    # Extract true labels from the CSV
+    true_labels_dict = extract_true_labels(true_labels_csv)
+
+    # Map the true labels to the binary_df based on the ACC column
+    binary_df['true_label'] = binary_df['ACC'].map(true_labels_dict)
+
+    print(binary_df.head(10))
+
+    output_path = os.path.join(output_folder, f"predictions_with_true_labels_{suffix}.csv")
+    binary_df.to_csv(output_path, index=False)
+    print(f"Binary predictions with mean values and true labels saved to: {output_path}")
+
+    return binary_df
 
 def get_binary_predictions_for_single_model(merged_df_csv, output_folder, true_labels_csv, model):
     """
@@ -379,66 +434,35 @@ def get_binary_predictions_for_single_model(merged_df_csv, output_folder, true_l
     print(binary_df.head(10))
 
     # Save the output with predictions and true labels
-    output_path = os.path.join(output_folder, "predictions_with_true_labels.csv")
+    output_path = os.path.join(output_folder, f"predictions_with_true_labels_{suffix}.csv")
     binary_df.to_csv(output_path, index=False)
     print(f"Binary predictions with true labels saved to: {output_path}")
 
     return binary_df
 
-def get_binary_predictions(merged_df, output_folder, label_thresholds=esm1b_label_thresholds, true_labels_csv='/home/cseroot/pasindumadusha.20/deeploc2-fyp/hpa_testset.csv'):
-    # Initialize a list to store the final results with the desired structure
-    results = []
 
-    # Loop over each row to calculate mean values and predicted labels
-    for idx, row in merged_df.iterrows():
-        acc = row["ACC"]
-        row_data = {"ACC": acc}  # Initialize row data with ACC
-        
-        # Initialize a list to store the predicted classes
-        predicted_labels = []
+def calculate_metrics(data_df, output_folder, dataset, uncertainty):
+    '''
+    Calculate metrics related to the model performance. Removed ["Membrane", "Extracellular", "Plastid", "Lysosome/Vacuole", "Peroxisome"]
+    when calculating the metrics
+        1.overall accuracy
+        2.Jaccard
+        3.MicroF1
+        4.MacroF2
+        5.MCC values for each class
+    '''
+    # Define class labels excluding the absent ones
+    if dataset == 'hpa':
+        excluded_labels = ["Membrane", "Extracellular", "Plastid", "Lysosome/Vacuole", "Peroxisome"]
+    else:
+        excluded_labels = ["Membrane"]
 
-        # Loop over each class to apply threshold and extract mean values
-        for i, class_name in enumerate(class_labels):
-            # Calculate mean prediction value for the current class
-            mean_value = np.mean([float(val) for val in row[class_name].split(" mean: ")[0][1:-1].split(",")])
-            row_data[class_name] = mean_value  # Add mean value to the row
-            
-            # Apply threshold to decide if this class is predicted
-            if mean_value >= label_thresholds[i]:
-                predicted_labels.append(class_name)
-        
-        # Join predicted class names with commas and store them in `predicted_label`
-        row_data["predicted_label"] = ", ".join(predicted_labels) if predicted_labels else "None"
-        
-        # Append the row data to the results list
-        results.append(row_data)
+    # Filter the class labels based on the excluded labels
+    filtered_class_labels = [label for label in class_labels if label not in excluded_labels]
 
-    # Convert the results list to a DataFrame
-    binary_df = pd.DataFrame(results)
-
-    print(binary_df.head(10))  # Display the first 10 rows for verification
-    
-    # Extract true labels from the CSV
-    true_labels_dict = extract_true_labels(true_labels_csv)
-
-    # Map the true labels to the binary_df based on the ACC column
-    binary_df['true_label'] = binary_df['ACC'].map(true_labels_dict)
-
-    print(binary_df.head(10))
-
-    output_path = os.path.join(output_folder, f"predictions_with_true_labels_{suffix}.csv")
-     # Write the hyperparameter configuration as the first line of the CSV
-    with open(output_path, 'w') as f:
-        f.write(f"# Hyperparameter Configuration: BATCH_SIZE={BATCH_SIZE}, REG_LOSS_MULT={REG_LOSS_MULT}, SUP_LOSS_MULT={SUP_LOSS_MULT}\n")
-        binary_df.to_csv(f, index=False)
-    
-    print(f"Binary predictions with mean values and true labels saved to: {output_path}")
-    return binary_df
-
-def calculate_metrics(data_df, output_folder):
     # Initialize a dictionary to store metrics
     metrics = {
-        "Metric": ["Subset Accuracy", "Jaccard", "MicroF1", "MacroF1"] + [f"MCC_{label}" for label in class_labels],
+        "Metric": ["Subset Accuracy", "Jaccard", "MicroF1", "MacroF1"] + [f"MCC_{label}" for label in filtered_class_labels],
         "Value": []
     }
 
@@ -447,8 +471,8 @@ def calculate_metrics(data_df, output_folder):
         return [1 if label in labels else 0 for label in all_labels]
 
     # Convert 'true_label' and 'predicted_label' columns to binary arrays
-    data_df['true_binary'] = data_df['true_label'].apply(lambda x: multilabel_to_binary_array(x.split(', '), class_labels))
-    data_df['predicted_binary'] = data_df['predicted_label'].apply(lambda x: multilabel_to_binary_array(x.split(', '), class_labels))
+    data_df['true_binary'] = data_df['true_label'].apply(lambda x: multilabel_to_binary_array(x.split(', '), filtered_class_labels))
+    data_df['predicted_binary'] = data_df['predicted_label'].apply(lambda x: multilabel_to_binary_array(x.split(', '), filtered_class_labels))
     
     true_binary_matrix = np.array(data_df['true_binary'].to_list())
     predicted_binary_matrix = np.array(data_df['predicted_binary'].to_list())
@@ -466,8 +490,8 @@ def calculate_metrics(data_df, output_folder):
     macro_f1 = f1_score(true_binary_matrix, predicted_binary_matrix, average='macro')
     metrics["Value"].extend([micro_f1, macro_f1])
 
-    # Calculate MCC for each class
-    for i, class_name in enumerate(class_labels):
+    # Calculate MCC for each present class
+    for i, class_name in enumerate(filtered_class_labels):
         mcc = matthews_corrcoef(true_binary_matrix[:, i], predicted_binary_matrix[:, i])
         metrics["Value"].append(mcc)
 
@@ -475,27 +499,43 @@ def calculate_metrics(data_df, output_folder):
     metrics_df = pd.DataFrame(metrics)
 
     # Save the results to a CSV file
-    output_path = os.path.join(output_folder, f"metrics_table_{suffix}.csv")
-     # Write the hyperparameter configuration as the first line of the CSV
-    with open(output_path, 'w') as f:
-        f.write(f"# Hyperparameter Configuration: BATCH_SIZE={BATCH_SIZE}, REG_LOSS_MULT={REG_LOSS_MULT}, SUP_LOSS_MULT={SUP_LOSS_MULT}\n")
-        metrics_df.to_csv(f, index=False)
-    
-    print(f"Binary predictions with mean values and true labels saved to: {output_path}")
+    output_path = os.path.join(output_folder, f"metrics_table_{uncertainty}.csv")
+    metrics_df.to_csv(output_path, index=False)
 
-        
+    # print(f"Metrics table {uncertainty} saved to: {output_path}")
+
+    return metrics_df
+
 def plot_combined_calibration_curve(data_df, output_folder, n_bins=10):
     """
-    Plot a combined calibration curve for all classes in one plot.
+    Plot two calibration curves:
+    1. Calibration curve for each individual class (without overall curve).
+    2. Overall calibration curve (without individual classes).
     
     Parameters:
         data_df (pd.DataFrame): DataFrame containing mean predicted probabilities and true labels for each class.
-        output_folder (str): Path to save the calibration plot.
+        output_folder (str): Path to save the calibration plots.
         n_bins (int): Number of bins for calibration.
     """
+    # Define a fixed color map for each class
+    color_map = {
+        'Cytoplasm': 'dodgerblue',
+        'Nucleus': 'crimson',
+        'Extracellular': 'forestgreen',
+        'Cell membrane': 'mediumorchid',
+        'Mitochondrion': 'darkorange',
+        'Plastid': 'darkgoldenrod',
+        'Endoplasmic reticulum': 'teal',
+        'Lysosome/Vacuole': 'slategray',
+        'Golgi apparatus': 'mediumvioletred',
+        'Peroxisome': 'gold'
+    }
+    
+    class_labels = list(color_map.keys())  # Define class labels based on color map keys
+    
+    # Plot 1: Calibration curve for each class (no overall curve)
     plt.figure(figsize=(10, 8))
 
-    # Loop through each class and calculate calibration data
     for class_name in class_labels:
         # Extract mean predicted probabilities and true labels for the class
         prob_col = class_name
@@ -504,43 +544,196 @@ def plot_combined_calibration_curve(data_df, output_folder, n_bins=10):
         # Convert the true label to binary format for each class
         data_df[f'{class_name}_true_binary'] = data_df[true_col].apply(lambda x: 1 if class_name in x else 0)
 
-        # Calculate calibration curve
+        # Calculate calibration curve for each class
         prob_true, prob_pred = calibration_curve(data_df[f'{class_name}_true_binary'], data_df[prob_col], n_bins=n_bins, strategy='uniform')
+        
+        # Calculate Brier score for each class
+        brier_score = brier_score_loss(data_df[f'{class_name}_true_binary'], data_df[prob_col])
+        
+        # Plot calibration curve for each class with Brier score in the legend
+        plt.plot(prob_pred, prob_true, marker='o', label=f"{class_name} (Brier: {brier_score:.3f})", color=color_map.get(class_name, 'gray'))
 
-        # Plot calibration curve
-        plt.plot(prob_pred, prob_true, marker='o', label=class_name)
-
-    # Plot the diagonal for perfect calibration
+    # Perfect calibration line
     plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly Calibrated")
 
     # Set plot labels and title
     plt.xlabel("Mean Predicted Probability")
     plt.ylabel("True Frequency")
-    plt.suptitle(
-        "Combined Calibration Plot for All Classes",
-        fontsize=14, y=1.05
+    plt.suptitle("Calibration Plot for Each Class",
+    fontsize=14, y=1.05
     )
     plt.title(
         f"Hyperparameter Configuration:\n BATCH_SIZE={BATCH_SIZE}, REG_LOSS_MULT={REG_LOSS_MULT}, SUP_LOSS_MULT={SUP_LOSS_MULT}",
         fontsize=10
     )
     plt.legend(loc="best")
+    plt.legend(loc="best")
     
-    # Save the plot
-    output_path = os.path.join(output_folder, f"combined_calibration_plot_{suffix}.png")
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-    plt.savefig(output_path)
+    # Save the first plot with only individual class curves
+    class_output_path = os.path.join(output_folder, f"calibration_plot_with_classes_{suffix}.png")
+    plt.tight_layout()
+    plt.savefig(class_output_path)
+    plt.close()
+    print(f"Calibration plot with individual classes saved to {class_output_path}")
+
+    # Plot 2: Only Overall Calibration Curve
+    plt.figure(figsize=(10, 8))
+    # Collect all class probabilities and true labels for the overall curve
+    all_probs = []
+    all_true_labels = []
+    for class_name in class_labels:
+        all_probs.extend(data_df[class_name])
+        all_true_labels.extend(data_df[f'{class_name}_true_binary'])
+
+    # Calculate overall calibration curve
+    overall_prob_true, overall_prob_pred = calibration_curve(all_true_labels, all_probs, n_bins=n_bins, strategy='uniform')
+    
+    # Calculate overall Brier score
+    overall_brier_score = brier_score_loss(all_true_labels, all_probs)
+    
+    # Plot the overall calibration curve with Brier score in the legend
+    plt.plot(overall_prob_pred, overall_prob_true, marker='o', color='black', linestyle='--', label=f'Overall Calibration (Brier: {overall_brier_score:.3f})')
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly Calibrated")
+
+    # Set plot labels and title for overall only
+    plt.xlabel("Mean Predicted Probability")
+    plt.ylabel("True Frequency")
+    plt.suptitle(f"Overall Calibration Plot for ",
+    fontsize=14, y=1.05
+    )
+    plt.title(
+        f"Hyperparameter Configuration:\n BATCH_SIZE={BATCH_SIZE}, REG_LOSS_MULT={REG_LOSS_MULT}, SUP_LOSS_MULT={SUP_LOSS_MULT}",
+        fontsize=10
+    )
+    
+    # Add overall Brier score to legend
+    plt.legend(loc="best")
+    plt.tight_layout()
+    overall_output_path = os.path.join(output_folder, f"overall_calibration_plot_{suffix}.png")
+    plt.savefig(overall_output_path)
+    plt.close()
+    print(f"Overall calibration plot saved to {overall_output_path}")
+
+def get_binary_predictions_uncertain(merged_df, output_folder, true_labels_csv, model, uncertainty, minimal=False):
+    '''
+    Combine predictions with true values for each sequence and save to a CSV file.
+    If minimal=True: works with simplified prediction format (raw values, no mean/var, no expected/mutual entropy).
+    '''
+
+    # Setup thresholds based on model
+    if model == 'Fast':
+        label_thresholds = esm1b_label_thresholds
+    else:
+        label_thresholds = prott5_label_thresholds
+
+    results = []
+
+    for idx, row in merged_df.iterrows():
+        acc = row["ACC"]
+        row_data = {"ACC": acc}
+
+        # Always include predictive entropy and uncertainty level
+        row_data["Predictive_Entropy"] = row["Predictive_Entropy"]
+        row_data["Uncertainty_Level"] = row["Uncertainty_Level"]
+
+        # Include extra uncertainty metrics if not minimal
+        # if not minimal:
+        #     row_data["Expected_Entropy"] = row["Expected_Entropy"]
+        #     row_data["Mutual_Information"] = row["Mutual_Information"]
+
+        predicted_labels = []
+
+        for i, class_name in enumerate(class_labels):
+            if minimal:
+                # Use raw float value directly
+                value = float(row[class_name])
+            else:
+                # Parse mean from string like "mean: ..., var: ..."
+                value = float(row[class_name].split("mean: ")[1].split(", var")[0])
+
+            row_data[class_name] = value
+
+            if value >= label_thresholds[i]:
+                predicted_labels.append(class_name)
+
+        row_data["predicted_label"] = ", ".join(predicted_labels) if predicted_labels else "None"
+        results.append(row_data)
+
+    binary_df = pd.DataFrame(results)
+
+    
+    true_labels_dict = extract_true_labels(true_labels_csv)
+    binary_df['true_label'] = binary_df['ACC'].map(true_labels_dict)
+
+    # Save to CSV
+    output_path = os.path.join(output_folder, f"predictions_with_true_labels_uncertainty_{uncertainty}.csv")
+    binary_df.to_csv(output_path, index=False)
+
+    print(f"Saved: {output_path}")
+    return binary_df
+
+
+def plot_reliability_curve(csv_file, output_folder):
+    """
+    Plots a reliability (calibration) curve, computes Expected Calibration Error (ECE),
+    and saves the plot.
+
+    Parameters:
+        csv_file (str): Path to the CSV file containing predictive entropy and true labels.
+        output_folder (str): Directory to save the plot.
+
+    Returns:
+        ece_value (float): Computed Expected Calibration Error (ECE).
+    """
+    # Load dataset
+    df = pd.read_csv(csv_file)
+
+    # Compute confidence (1 - Predictive Entropy) and normalize it
+    df["Confidence"] = 1 - df["Predictive_Entropy"]
+    df["Confidence"] = (df["Confidence"] - df["Confidence"].min()) / (df["Confidence"].max() - df["Confidence"].min())
+
+    # Define confidence bins dynamically
+    bins = np.linspace(0, 1, num=10)
+    
+    # Ensure at least two distinct bin edges exist
+    if len(np.unique(bins)) < 2:
+        print(f"Skipping plot for {csv_file} because Confidence values are too narrow.")
+        return None
+
+    df["Confidence_Bin"] = pd.cut(df["Confidence"], bins, labels=False, include_lowest=True)
+
+    # Compute accuracy within each confidence bin
+    df["Correct"] = (df["predicted_label"] == df["true_label"]).astype(int)  # 1 if correct, 0 if wrong
+    bin_accuracy = df.groupby("Confidence_Bin")["Correct"].mean().fillna(0)
+    bin_confidence = df.groupby("Confidence_Bin")["Confidence"].mean().fillna(0)
+    bin_counts = df.groupby("Confidence_Bin").size()
+
+    # Compute Expected Calibration Error (ECE)
+    ece_value = np.sum(np.abs(bin_accuracy - bin_confidence) * (bin_counts / len(df)))
+
+    # Debugging: Print ECE value
+    print(f"ECE for {csv_file}: {ece_value:.4f}")
+
+    # Check if bin_accuracy and bin_confidence have valid points
+    if bin_accuracy.empty or bin_confidence.empty:
+        print(f"Warning: No valid points to plot for {csv_file}!")
+        return
+
+    # Plot reliability curve
+    plt.figure(figsize=(8, 6))
+    plt.plot(bin_confidence, bin_accuracy, marker="o", linestyle="--", label="Model Calibration")
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfect Calibration")  # Diagonal line
+    plt.xlabel("Confidence")
+    plt.ylabel("Accuracy")
+    plt.legend()
+    plt.title(f"Reliability Curve for {os.path.basename(csv_file)}\nECE: {ece_value:.4f}")
+
+    # Ensure output directory exists
+    os.makedirs(output_folder, exist_ok=True)
+
+    # Save plot
+    output_file = os.path.join(output_folder, f"reliability_curve_{os.path.basename(csv_file).replace('.csv', '.png')}")
+    plt.savefig(output_file)
     plt.close()
 
-    print(f"Combined calibration plot saved to {output_path}")
-
-def iterate_hyperparams(batch_sizes, sup_loss_mults, reg_loss_mults):
-    """
-    Generator function to iterate over combinations of hyperparameters and assign
-    them to BATCH_SIZE, SUP_LOSS_MULT, and REG_LOSS_MULT.
-    
-    Yields:
-        BATCH_SIZE, SUP_LOSS_MULT, REG_LOSS_MULT: A combination of the parameters
-    """
-    for batch_size, sup_loss_mult, reg_loss_mult in itertools.product(batch_sizes, sup_loss_mults, reg_loss_mults):
-        yield batch_size, sup_loss_mult, reg_loss_mult
+    print(f"Reliability curve saved to: {output_file}")
