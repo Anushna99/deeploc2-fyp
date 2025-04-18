@@ -120,26 +120,40 @@ def get_optimal_threshold_mcc(output_df, data_df):
 def calculate_sl_metrics_fold(test_df, thresholds, outer_i, outputs_save_path):
     print("Computing fold")
     predictions = np.stack(test_df["preds"].to_numpy())
-    outputs = predictions>thresholds
+    classification_logits = predictions[:, :11]
+    outputs = classification_logits > thresholds
     actuals = np.stack(test_df["Target"].to_numpy())
+    rejector_logits = predictions[:, 11:]
 
-    # Convert predictions, outputs, and actuals back to DataFrames
-    preds_df = pd.DataFrame(predictions, columns=[
+    
+# Convert both classification logits and rejector logits into DataFrames
+    preds_df = pd.DataFrame(classification_logits, columns=[
         'Membrane', 'Cytoplasm', 'Nucleus', 'Extracellular', 'Cell membrane',
         'Mitochondrion', 'Plastid', 'Endoplasmic reticulum', 'Lysosome/Vacuole',
         'Golgi apparatus', 'Peroxisome'
     ])
+    reject_df = pd.DataFrame(rejector_logits, columns=[
+    'Rejector_Membrane', 'Rejector_Cytoplasm', 'Rejector_Nucleus', 'Rejector_Extracellular',
+    'Rejector_Cell_membrane', 'Rejector_Mitochondrion', 'Rejector_Plastid',
+    'Rejector_Endoplasmic_reticulum', 'Rejector_Lysosome_Vacuole',
+    'Rejector_Golgi_apparatus', 'Rejector_Peroxisome'
+])
+
+   
+
 
     outputs_df = pd.DataFrame(outputs, columns=preds_df.columns)
     actuals_df = pd.DataFrame(actuals, columns=preds_df.columns)
 
-    # Combine all into a single DataFrame
-    combined_df = pd.concat([test_df[['ACC']], preds_df, outputs_df, actuals_df], axis=1)
-    # Rename columns for clarity
+    # Combine all into a single DataFrame (separating rejector logits)
+    combined_df = pd.concat([test_df[['ACC']], preds_df, outputs_df, actuals_df, reject_df], axis=1)
+
+# Rename columns for clarity
     combined_df.columns = ['ACC'] + \
-                          [f'pred_{col}' for col in preds_df.columns] + \
-                          [f'pred_loc_{col}' for col in preds_df.columns] + \
-                          [f'true_loc_{col}' for col in preds_df.columns]
+                      [f'pred_{col}' for col in preds_df.columns] + \
+                      [f'pred_loc_{col}' for col in preds_df.columns] + \
+                      [f'true_loc_{col}' for col in preds_df.columns] + \
+                      [f'rejector_{col}' for col in reject_df.columns]
 
     # # Save the DataFrame to a CSV file
     output_csv_path = f"{outputs_save_path}/model_{outer_i}_results.csv"

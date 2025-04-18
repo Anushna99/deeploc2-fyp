@@ -56,7 +56,7 @@ class BaseModel(pl.LightningModule):
         self.initial_ln = nn.LayerNorm(embed_dim)
         self.lin = nn.Linear(embed_dim, 256)
         self.attn_head = AttentionHead(256, 1)
-        self.clf_head = nn.Linear(256, 11)
+        self.clf_head = nn.Linear(256, 11+11)
         self.kld = nn.KLDivLoss(reduction="batchmean")
         self.lr = 1e-3
         self.predictions = []
@@ -66,8 +66,9 @@ class BaseModel(pl.LightningModule):
         x = self.lin(x)
         x_pool, x_attns = self.attn_head(x, non_mask, lens)
         x_pred = self.clf_head(x_pool)
-        #print(x_pred, x_attns)
-        return x_pred, x_attns
+        logits = x_pred[:, :11]  # First 11 are logits
+        reject_probs = torch.sigmoid(x_pred[:, 11:])  # Last 11 are reject probabilities
+        return logits, reject_probs, x_attns
 
     def predict(self, embedding, lens, non_mask):
         x = self.initial_ln(embedding)
@@ -117,20 +118,34 @@ class BaseModel(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         #self.unfreeze()
         x, l, n, y, y_tags, _ = batch
-        y_pred, y_attns =  self.forward(x, l, n)
+        logits, reject_probs, y_attns = self.forward(x, l, n)
         reg_loss, seq_loss, seq_count = self.attn_reg_loss(y, y_attns, y_tags, l, n)
-        bce_loss = focal_loss(y_pred, y)
-        loss = bce_loss + SUP_LOSS_MULT * seq_loss + REG_LOSS_MULT * reg_loss
+        bce_loss = focal_loss(logits, y)
+
+        # Penalize excessive rejection
+        reject_penalty = reject_probs.mean()
+
+
+         # Uncertainty Loss: Encourage rejection for uncertain predictions
+        uncertainty_loss = (((1-reject_probs) * torch.abs(torch.sigmoid(logits) - y)).mean())
+
+
+        loss = bce_loss + SUP_LOSS_MULT * seq_loss + REG_LOSS_MULT * reg_loss + 0.5 * reject_penalty + 0.5 * uncertainty_loss
         self.log('train_loss_batch', loss, on_epoch=True)
+        self.log('bce_loss', bce_loss, on_epoch=True)
+        self.log('reject_penalty', reject_penalty, on_epoch=True)
+        self.log('uncertainty_loss', uncertainty_loss, on_epoch=True)
         return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
         #self.unfreeze()
         x, l, n, y, y_tags, _ = batch
-        y_pred, y_attns =  self.forward(x, l, n)
+        logits, reject_probs, y_attns = self.forward(x, l, n)
         reg_loss, seq_loss, seq_count = self.attn_reg_loss(y, y_attns, y_tags, l, n)
-        bce_loss = focal_loss(y_pred, y)
-        loss = bce_loss + SUP_LOSS_MULT * seq_loss + REG_LOSS_MULT * reg_loss
+        bce_loss = focal_loss(logits, y)
+        reject_penalty = reject_probs.mean()
+        uncertainty_loss = (((1-reject_probs) * torch.abs(torch.sigmoid(logits) - y)).mean())
+        loss = bce_loss + SUP_LOSS_MULT * seq_loss + REG_LOSS_MULT * reg_loss + 0.5 * reject_penalty + 0.5 * uncertainty_loss
         self.log('val_loss_batch', loss, on_epoch=True)
         self.log('bce_loss', bce_loss, on_epoch=True)
         return {'loss': loss, 

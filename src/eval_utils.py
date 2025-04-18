@@ -90,16 +90,38 @@ def predict_sl_outputs(dataloader, model, outputs_save_path, outer_i, inner_i):
     if not os.path.exists(os.path.dirname(output_csv_path)):
             os.makedirs(os.path.dirname(output_csv_path))
     
-    localization_columns = CATEGORIES
+    localization_columns = CATEGORIES  # Original 11 classification categories
+    rejector_columns = [f"reject_{col}" for col in localization_columns]  # Extra 11 rejector logits
 
-    # Create a DataFrame for the predictions
-    preds_df = pd.DataFrame(output_df['preds'].to_list(), columns=localization_columns)
-    preds_df.insert(0, 'ACC', output_df['ACC'])
+    # Convert predictions to DataFrame
+    pred_array = np.array(output_df['preds'].to_list())  # Convert list of predictions to numpy array
+
+    # Ensure it has the correct shape (num_samples, 22)
+    assert pred_array.shape[1] == 22, f"Expected 22 output columns, got {pred_array.shape[1]}"
+
+    # Split into classification and rejector logits
+    class_preds = pred_array[:, :11]  # First 11 columns are classification predictions
+    reject_preds = pred_array[:, 11:]  # Last 11 columns are rejector probabilities
+
+    # Convert to DataFrames
+    class_preds_df = pd.DataFrame(class_preds, columns=localization_columns)
+    reject_preds_df = pd.DataFrame(reject_preds, columns=rejector_columns)
+
+    # Add ACC column back
+    class_preds_df.insert(0, 'ACC', output_df['ACC'])
+    reject_preds_df.insert(0, 'ACC', output_df['ACC'])
+
+    # Merge both DataFrames side by side
+    combined_preds_df = pd.concat([class_preds_df, reject_preds_df], axis=1)
+
+
+    # Save everything together in a single CSV file
+    output_csv = os.path.join(outputs_save_path, f"{outer_i}_{inner_i}_full_predictions.csv")
+    combined_preds_df.to_csv(output_csv, index=False, float_format="%.8f")
+
     
-    # Save the DataFrame
-    preds_df.to_csv(output_csv_path, index=False, float_format="%.8f")
-    print(f"Saved predictions to {output_csv_path}")
 
+    # Return both merged for further processing
     return output_df.merge(annot_df).merge(pool_df)
 
 def generate_sl_outputs(
@@ -214,7 +236,7 @@ def generate_sl_predictions(
         if not os.path.exists(os.path.join(model_attrs.outputs_save_path, f"inner_{outer_i}_{inner_i}.pkl")):
             # path to the model i trained checkpoint
             if (model_attrs.model_type == FAST):
-                model_attrs.save_path = 'models/models_esm1b'
+                model_attrs.save_path = 'models/models_esm1b/agnostic_rejector_exp8'
             else:
                 model_attrs.save_path = 'models/models_prott5'
             path = f"{model_attrs.save_path}/{outer_i}_{inner_i}.ckpt"

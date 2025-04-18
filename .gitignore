@@ -20,3 +20,93 @@ data_files/embeddings
 outputs/esm1b
 outputs/prott5
 
+# ── model checkpoints ──────────────────────────────────────────
+*.ckpt
+*.pt
+
+# ── data tables ────────────────────────────────────────────────
+*.csv
+
+# ── configuration files ────────────────────────────────────────
+*.yaml
+*.yml
+
+# ── Python byte‑code / caches ──────────────────────────────────
+*.pyc
+__pycache__/
+
+
+*.txt
+*.log
+*.fasta
+
+
+
+
+outputs/
+# ── model checkpoints ──────────────────────────────────────────
+*.ckpt
+*.pt
+# ── data tables ────────────────────────────────────────────────
+*.csv
+
+# ── configuration files ────────────────────────────────────────
+*.yaml
+*.yml
+
+# ── Python byte‑code / caches ──────────────────────────────────
+*.pyc
+__pycache__/
+*.txt
+*.log
+
+*.png
+*.h5
+*jpg
+.gitignore
+src/__pycache__/__init__.cpython-310.pyc
+src/__pycache__/attr_prior.cpython-310.pyc
+src/__pycache__/constants.cpython-310.pyc
+src/__pycache__/data.cpython-310.pyc
+src/__pycache__/embedding.cpython-310.pyc
+src/__pycache__/eval_utils.cpython-310.pyc
+src/__pycache__/metrics.cpython-310.pyc
+src/__pycache__/model.cpython-310.pyc
+src/__pycache__/utils.cpython-310.pyc
+outputs/uncertainity_results/Fast/hpa/calibration_plot_with_classes.png
+outputs/uncertainity_results/Fast/hpa/merged_predictions_of_ensembles_with_stats.csv
+outputs/uncertainity_results/Fast/hpa/metrics_table.csv
+outputs/uncertainity_results/Fast/hpa/overall_calibration_plot.png
+outputs/uncertainity_results/Fast/hpa/predictions_with_true_labels.csv
+outputs/uncertainity_results/Fast/hpa/variance_statistics.csv
+outputs/uncertainity_results/Fast/hpa/graphs/Cell membrane_variance_distribution.png
+outputs/uncertainity_results/Fast/hpa/graphs/Cytoplasm_variance_distribution.png
+outputs/uncertainity_results/Fast/hpa/graphs/Endoplasmic reticulum_variance_distribution.png
+outputs/uncertainity_results/Fast/hpa/graphs/Extracellular_variance_distribution.png
+outputs/uncertainity_results/Fast/hpa/graphs/Golgi apparatus_variance_distribution.png
+outputs/uncertainity_results/Fast/hpa/graphs/Lysosome_Vacuole_variance_distribution.png
+outputs/uncertainity_results/Fast/hpa/graphs/Membrane_variance_distribution.png
+outputs/uncertainity_results/Fast/hpa/graphs/Mitochondrion_variance_distribution.png
+outputs/uncertainity_results/Fast/hpa/graphs/Nucleus_variance_distribution.png
+outputs/uncertainity_results/Fast/hpa/graphs/Peroxisome_variance_distribution.png
+outputs/uncertainity_results/Fast/hpa/graphs/Plastid_variance_distribution.png
+outputs/uncertainity_results/Fast/hpa/model_1/calibration_plot_with_classes.png
+outputs/uncertainity_results/Fast/hpa/model_1/metrics_table.csv
+outputs/uncertainity_results/Fast/hpa/model_1/overall_calibration_plot.png
+outputs/uncertainity_results/Fast/hpa/model_1/predictions_with_true_labels.csv
+outputs/uncertainity_results/Fast/hpa/model_2/calibration_plot_with_classes.png
+outputs/uncertainity_results/Fast/hpa/model_2/metrics_table.csv
+outputs/uncertainity_results/Fast/hpa/model_2/overall_calibration_plot.png
+outputs/uncertainity_results/Fast/hpa/model_2/predictions_with_true_labels.csv
+outputs/uncertainity_results/Fast/hpa/model_3/calibration_plot_with_classes.png
+outputs/uncertainity_results/Fast/hpa/model_3/metrics_table.csv
+outputs/uncertainity_results/Fast/hpa/model_3/overall_calibration_plot.png
+outputs/uncertainity_results/Fast/hpa/model_3/predictions_with_true_labels.csv
+outputs/uncertainity_results/Fast/hpa/model_4/calibration_plot_with_classes.png
+outputs/uncertainity_results/Fast/hpa/model_4/metrics_table.csv
+outputs/uncertainity_results/Fast/hpa/model_4/overall_calibration_plot.png
+outputs/uncertainity_results/Fast/hpa/model_4/predictions_with_true_labels.csv
+outputs/uncertainity_results/Fast/hpa/model_5/calibration_plot_with_classes.png
+outputs/uncertainity_results/Fast/hpa/model_5/metrics_table.csv
+outputs/uncertainity_results/Fast/hpa/model_5/overall_calibration_plot.png
+outputs/uncertainity_results/Fast/hpa/model_5/predictions_with_true_labels.csv

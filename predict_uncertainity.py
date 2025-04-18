@@ -4,6 +4,7 @@ from src.eval_utils import *
 from src.embedding import *
 from src.metrics import *
 import argparse
+import os
 
 def check_folder_exists(folder_path):
     """Check if the specified folder exists."""
@@ -36,7 +37,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "-m","--model", 
+        "-m", "--model", 
         default="Fast",
         choices=['Accurate', 'Fast'],
         type=str,
@@ -57,26 +58,23 @@ if __name__ == "__main__":
         },
         'Fast': {
             "swissprot": "outputs/test_swissprot_esm1b",
-            "hpa": "outputs/test_hpa_esm1b"
+            "hpa": "outputs/test_hpa_esm1b_agnostic_rejector"
         }
     }
 
     # Get the selected folder for the specific dataset and model
     selected_folder = test_results_saved_folder[args.model][args.dataset]
-    required_files = [f"{i}_1Layer_output_predictions.csv" for i in range(5)]
+    required_files = [f"{i}_1Layer_full_predictions.csv" for i in range(5)]
 
     if check_folder_exists(selected_folder) and check_required_files(selected_folder, required_files):
-        print("proceeding with calculating uncertainity...")
+        print("Proceeding with classification-only uncertainty quantification...")
 
         uncertainty_results_path, true_labels_csv = prepare_uncertainty_results_path(args.dataset, args.model)
 
         # Merge prediction files and save the output to the relevant folder
         merge_df = merge_prediction_files(selected_folder, required_files, uncertainty_results_path)
 
-        # calculate variance distribution over each classes
-        plot_variance_distribution(merge_df, uncertainty_results_path)
-
-        print("Calculating metrics for each model")
+        print("Calculating classification metrics for each model")
         for i in range(5):
             model_result_path = os.path.join(uncertainty_results_path, f"model_{i+1}")
             os.makedirs(model_result_path, exist_ok=True)
@@ -84,24 +82,15 @@ if __name__ == "__main__":
             model_file_path = os.path.join(selected_folder, required_files[i])
             binary_predictions = get_binary_predictions_for_single_model(model_file_path, model_result_path, true_labels_csv, args.model)
             
+            # **Calculate only classification-related metrics**
             calculate_metrics(binary_predictions, model_result_path, args.dataset)
             plot_combined_calibration_curve(binary_predictions, model_result_path)
         
-        # calculate metrics
-        print("Calculating metrics for the ensemble results...")
+        # Calculate metrics for the ensemble
+        print("Calculating classification metrics for the ensemble results...")
         binary_predictions = get_binary_predictions(merge_df, uncertainty_results_path, true_labels_csv, args.model)
 
         calculate_metrics(binary_predictions, uncertainty_results_path, args.dataset)
 
-        print("Generating calibaration curve...")
+        print("Generating calibration curve for classification labels...")
         plot_combined_calibration_curve(binary_predictions, uncertainty_results_path)
-
-        
-
-
-
-
-    
-
-    
-

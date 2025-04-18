@@ -78,8 +78,8 @@ def get_train_model_attributes(model_type):
             alphabet,
             EMBEDDINGS[FAST]["embeds"],
             "swissprot",
-            "models/models_esm1b/ensemble_4",
-            "outputs/esm1b/ensemble_4",
+            "models/models_esm1b/agnostic_rejector_exp8",
+            "outputs/esm1b/agnostic_rejector_exp8",
             1022,
             1280
         )
@@ -111,13 +111,13 @@ def get_test_model_attributes(model_type, data):
         # Switch between SwissProt and HPA embeddings for Fast model
         if data == "swissprot":
             embedding_file = EMBEDDINGS[FAST]["embeds"]
-            save_path = "models/models_test_swissprot_esm1b"
-            outputs_save_path = "outputs/test_swissprot_esm1b/"
+            save_path = "models/models_test_swissprot_esm1b_agnostic_rejector_exp8"
+            outputs_save_path = "outputs/test_swissprot_esm1b_agnostic_rejector_exp8/"
             dataset = data
         elif data == "hpa":
             embedding_file = EMBEDDINGS[TEST_ESM]["embeds"]
-            save_path = "models/models_test_hpa_esm1b"
-            outputs_save_path = "outputs/test_hpa_esm1b/"
+            save_path = "models/models_test_hpa_esm1b_agnostic_rejector_exp8"
+            outputs_save_path = "outputs/test_hpa_esm1b_agnostic_rejector_exp8/"
             dataset = data
         else:
             raise ValueError(f"Unknown dataset: {dataset}")
@@ -185,7 +185,7 @@ def save_fasta_to_csv(fasta_dict, outputs_save_path, type):
     # Save to CSV
     df.to_csv(output_file, index=False)
     print(f"FASTA sequences saved to {output_file}")
-
+    
 def merge_prediction_files(folder_path, required_files, output_folder):
     """Merge prediction files from a folder, calculate mean and variance, and save the merged CSV."""
     merged_data = {}
@@ -194,22 +194,36 @@ def merge_prediction_files(folder_path, required_files, output_folder):
     for file in required_files:
         file_path = os.path.join(folder_path, file)
         if os.path.exists(file_path):
-            df = pd.read_csv(file_path, index_col="ACC")
+            df = pd.read_csv(file_path)
+
+            # Ensure "ACC" column is stored separately and not included in numeric calculations
+            if "ACC" not in merged_data:
+                merged_data["ACC"] = df["ACC"]  # Keep ACC column unchanged
+
             for col in df.columns:
+                if col == "ACC":  
+                    continue  # Skip processing ACC column
+
                 if col not in merged_data:
                     merged_data[col] = []
                 merged_data[col].append(df[col])
 
-    # Prepare the ACC column separately to ensure it is first in the final DataFrame
-    acc_index = merged_data['Membrane'][0].index
-    results = {'ACC': acc_index}
+    # Prepare final results DataFrame
+    results = {"ACC": merged_data["ACC"]}  # Ensure ACC is preserved
 
-    # Calculate mean and variance, then add formatted results for each class to the DataFrame
+    # Process only numeric columns for mean and variance calculations
     for col, data in merged_data.items():
+        if col == "ACC":  
+            continue  # Skip ACC column
+
         combined = pd.concat(data, axis=1)
+
+        # Ensure values are numeric before computing mean & variance
+        numeric_values = combined.applymap(lambda x: float(x) if str(x).replace('.', '', 1).isdigit() else np.nan)
+
         results[col] = [
-            f"({', '.join([f'{v:.8f}' for v in row.values])}) mean: {np.mean(row.values):.8f}, var: {np.var(row.values):.8f}"
-            for _, row in combined.iterrows()
+            f"mean: {np.nanmean(row.values):.8f}, var: {np.nanvar(row.values):.8f}"
+            for _, row in numeric_values.iterrows()
         ]
 
     # Save merged DataFrame with calculated statistics to output folder
@@ -219,6 +233,7 @@ def merge_prediction_files(folder_path, required_files, output_folder):
     print(f"Merged predictions of ensembles with statistics saved to {output_file}")
 
     return final_df
+
 
 def plot_variance_distribution(df, output_folder):
     """Plot the variance distribution for each class based on the merged CSV file and save summary statistics."""
@@ -323,7 +338,8 @@ def get_binary_predictions(merged_df, output_folder, true_labels_csv, model):
         # Loop over each class to apply threshold and extract mean values
         for i, class_name in enumerate(class_labels):
             # Calculate mean prediction value for the current class
-            mean_value = np.mean([float(val) for val in row[class_name].split(" mean: ")[0][1:-1].split(",")])
+            # Extract the mean value correctly
+            mean_value = float(row[class_name].split("mean: ")[1].split(",")[0].strip())
             row_data[class_name] = mean_value  # Add mean value to the row
             
             # Apply threshold to decide if this class is predicted
