@@ -1,4 +1,5 @@
 
+
 import warnings
 warnings.filterwarnings("ignore")
 import onnxruntime
@@ -18,6 +19,7 @@ from DeepLoc2.utils import *
 from transformers import T5EncoderModel, T5Tokenizer, logging
 logging.set_verbosity_error()
 
+
 def run_model_esm1b(embed_dataloader, args, test_df):
     multilabel_dict = {}
     signaltype_dict = {}
@@ -30,12 +32,14 @@ def run_model_esm1b(embed_dataloader, args, test_df):
               signaltype_dict[labels[0]] = st_out
               attn_dict[labels[0]] = attn_out
 
+
     multilabel_df = pd.DataFrame(multilabel_dict.items(), columns=['ACC', 'multilabel'])
     signaltype_df = pd.DataFrame(signaltype_dict.items(), columns=['ACC', 'signaltype'])
     attn_df = pd.DataFrame(attn_dict.items(), columns=['ACC', 'Attention'])
     pred_df = test_df.merge(multilabel_df).merge(signaltype_df).merge(attn_df)
     #print(pred_df)
     return pred_df
+
 
 def run_model_prott5(embed_dataloader, args, test_df):
     multilabel_dict = {}
@@ -49,6 +53,7 @@ def run_model_prott5(embed_dataloader, args, test_df):
               signaltype_dict[labels[0]] = st_out
               attn_dict[labels[0]] = attn_out
 
+
     multilabel_df = pd.DataFrame(multilabel_dict.items(), columns=['ACC', 'multilabel'])
     signaltype_df = pd.DataFrame(signaltype_dict.items(), columns=['ACC', 'signaltype'])
     attn_df = pd.DataFrame(attn_dict.items(), columns=['ACC', 'Attention'])
@@ -59,12 +64,24 @@ def run_model_prott5(embed_dataloader, args, test_df):
 
 
 
+def get_class_certainty(prob):
+   entropy =  - prob * np.log2(prob + 1e-8) - (1 - prob) * np.log2(1 - prob + 1e-8)
+   if entropy <= 0.65:
+       return "confident prediction"
+   else:
+       return "uncertain"
+
+
+
+
+
+
 def main(args):
     fasta_dict = read_fasta(args.fasta)
     test_df = pd.DataFrame(fasta_dict.items(), columns=['ACC', 'Sequence'])
     labels = ["Cytoplasm","Nucleus","Extracellular","Cell membrane","Mitochondrion","Plastid","Endoplasmic reticulum","Lysosome/Vacuole","Golgi apparatus","Peroxisome"]
     signals = ["Signal peptide", "Transmembrane domain", "Mitochondrial transit peptide", "Chloroplast transit peptide", "Thylakoid luminal transit peptide", "Nuclear localization signal", "Nuclear export signal", "Peroxisomal targeting signal"]
-    
+   
     #print(len(test_df))
     if args.model == "Fast":    
         def clip_middle(x):
@@ -73,6 +90,7 @@ def main(args):
             return x
         test_df["Sequence"] = test_df["Sequence"].apply(lambda x: clip_middle(x))
         alphabet_path = pkg_resources.resource_filename('DeepLoc2',"models/ESM1b_alphabet.pkl")
+
 
         with open(alphabet_path, "rb") as f:
             alphabet = pickle.load(f)
@@ -90,6 +108,7 @@ def main(args):
             return x
         test_df["Sequence"] = test_df["Sequence"].apply(lambda x: clip_middle(x))
 
+
         alphabet = T5Tokenizer.from_pretrained("Rostlab/prot_t5_xl_uniref50", do_lower_case=False )
         #alphabet = Alphabet(proteinseq_toks)
         embed_dataset = FastaBatchedDatasetTorch(test_df)
@@ -99,24 +118,29 @@ def main(args):
         label_threshold = np.array([0.45717773, 0.47612305, 0.50136719, 0.61728516, 0.56464844, 0.62197266, 0.63945312, 0.60898438, 0.58476562, 0.64941406, 0.73642578])
         signal_threshold = np.array([0.30484808, 0.47878058, 0.55917172, 0.74695907, 0.79056934, 0.53644955, 0.61476384, 0.38718303, 0.62338418])
 
+
     pred_df["Class_MultiLabel"] = pred_df["multilabel"].apply(lambda x: convert_label2string(x, label_threshold))
     pred_df["Class_SignalType"] = pred_df["signaltype"].apply(lambda x: convert_signal2string(x, signal_threshold))
     pred_df["multilabel"] = pred_df["multilabel"].apply(lambda x: x[0, 1:])
+
 
     if args.plot:
         generate_attention_plot_files(pred_df, args.output)
     timestr = time.strftime("%Y%m%d-%H%M%S")
     csv_out = '{}/results_{}.csv'.format(args.output,timestr)
     out_file = open(csv_out,"w")
-    out_file.write("Protein_ID,Localizations,Signals,{}\n".format(",".join(labels)))
-    
+    extended_labels = []
+    for label in labels:
+        extended_labels.extend([label, f"{label} certainty"])
+    out_file.write("Protein_ID,Localizations,Signals,{}\n".format(",".join(extended_labels)))
+   
     for prot_ind,prot in pred_df.iterrows():
       #idd = str(ids_test[prot]).split("/")
       pred_labels = prot['Class_MultiLabel']
       pred_signals = prot['Class_SignalType']
       order_pred = np.argsort(prot['multilabel'])
       if pred_labels == "":
-         pred_labels = labels[order_pred[-1]] 
+         pred_labels = labels[order_pred[-1]]
       pred_prob = np.around(prot['multilabel'], decimals=4)
       thres_prob = pred_prob-label_threshold[1:]
       thres_prob[thres_prob < 0.0] = 0.0
@@ -136,9 +160,15 @@ def main(args):
             alpha_f.write("AA,Alpha\n")
             for aa_index,aa in enumerate(seq_aa):
                alpha_f.write("{},{}\n".format(aa,str(alpha_values[aa_index])))
-      out_line = ','.join([seq_id,pred_labels.replace(", ","|"),pred_signals.replace(", ","|")]+list(map(str,csv_likelihood)))
-      out_file.write(out_line+"\n")
+      certainties = [get_class_certainty(prob) for prob in pred_prob.tolist()]
+      combined = []
+      for p, c in zip(csv_likelihood, certainties):
+          combined.extend([p, c])
+      out_line = ','.join([seq_id, pred_labels.replace(", ", "|"), pred_signals.replace(", ", "|")] + list(map(str, combined)))
+      out_file.write(out_line + "\n")
     out_file.close()
+
+
 
 
 def predict():
@@ -150,7 +180,7 @@ def predict():
         "-o","--output", type=str, default="./outputs/", help="Output directory"
     )
     parser.add_argument(
-        "-m","--model", 
+        "-m","--model",
         default="Fast",
         choices=['Accurate', 'Fast'],
         type=str,
@@ -160,6 +190,7 @@ def predict():
         "-p","--plot", default=False, action='store_true', help="Plot attention values"
     )
 
+
     parser.add_argument(
         "-d","--device", type=str, default="cpu", choices=['cpu', 'cuda', 'mps'], help="One of cpu, cuda, mps"
     )
@@ -167,4 +198,4 @@ def predict():
     if not os.path.exists(args.output):
         os.mkdir(args.output)
     main(args)
-    
+   
